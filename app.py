@@ -11,14 +11,16 @@ SHEET_URL = "https://docs.google.com/spreadsheets/d/TU_ID_AQUÍ/edit#gid=0"
 
 @st.cache_data(ttl=600)
 def cargar_desde_sheets(url):
-    # Truco para convertir el link de edición en link de descarga CSV
+    # Aquí es donde se define csv_url correctamente
     csv_url = url.replace('/edit#gid=', '/export?format=csv&gid=')
-    df = pd.read_csv(csv_url)
     
-    # Limpieza de espacios en los nombres de las columnas
+    # Leemos con UTF-8 para evitar el error de las tildes
+    df = pd.read_csv(csv_url, encoding='utf-8')
+    
+    # Limpieza de nombres de columnas
     df.columns = [c.strip() for c in df.columns]
     
-    # Renombrado inteligente por palabras clave
+    # Renombrado inteligente
     nuevos_nombres = {}
     for col in df.columns:
         if 'Fecha' in col: nuevos_nombres[col] = 'Fecha'
@@ -29,12 +31,11 @@ def cargar_desde_sheets(url):
     
     df = df.rename(columns=nuevos_nombres)
     
-    # Limpieza de datos (Comas a Puntos y convertir a números)
+    # Limpieza de datos (Comas a Puntos)
     for col in ['pH', 'Temp', 'Solidos']:
         if col in df.columns:
             df[col] = df[col].astype(str).str.replace(',', '.').astype(float)
             
-    # Convertir fecha
     if 'Fecha' in df.columns:
         df['Fecha'] = pd.to_datetime(df['Fecha'], dayfirst=True)
     
@@ -42,16 +43,21 @@ def cargar_desde_sheets(url):
 
 # 2. EJECUCIÓN DEL PROGRAMA
 try:
-    df = pd.read_csv(csv_url, encoding='utf-8')
+    # Llamamos a la función y ella se encarga de todo lo interno
+    df = cargar_desde_sheets(SHEET_URL)
+    
     st.success("✅ Datos sincronizados correctamente")
+
+    # Muestra los primeros datos para que verifiques que cargó bien
+    with st.expander("Ver previsualización de datos"):
+        st.write(df.head())
 
     # --- FILTROS ---
     st.sidebar.header("Filtros")
     if 'Proceso' in df.columns:
-        procesos = st.sidebar.multiselect("Filtrar Procesos:", 
-                                         options=df['Proceso'].unique(), 
-                                         default=df['Proceso'].unique())
-        df_filt = df[df['Proceso'].isin(procesos)]
+        procesos_lista = df['Proceso'].unique()
+        sel = st.sidebar.multiselect("Filtrar Procesos:", options=procesos_lista, default=procesos_lista)
+        df_filt = df[df['Proceso'].isin(sel)]
     else:
         df_filt = df
 
@@ -72,4 +78,3 @@ try:
 
 except Exception as e:
     st.error(f"Hubo un problema al procesar los datos: {e}")
-    st.info("Revisa que el enlace de Google Sheets sea correcto y público.")
