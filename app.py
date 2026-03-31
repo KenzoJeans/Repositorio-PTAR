@@ -4,96 +4,79 @@ import plotly.express as px
 import requests
 import io
 
-# 1. CONFIGURACIÓN DE LA PÁGINA
 st.set_page_config(page_title="Control PTAR", layout="wide")
 st.title("💧 Control de Vertimientos (Tiempo Real)")
 
-# --- REEMPLAZA EL ENLACE DE ABAJO POR EL TUYO ---
-# Asegúrate de que termine en /edit#gid=...
-SHEET_URL = "https://docs.google.com/spreadsheets/d/TU_ID_AQUÍ/edit#gid=0"
+# --- INSTRUCCIÓN: Copia el link de tu navegador y pégalo aquí abajo ---
+# Asegúrate de que incluya desde 'https://' hasta el final
+SHEET_URL = "TU_LINK_DE_GOOGLE_SHEETS_AQUÍ"
 
 @st.cache_data(ttl=60)
 def cargar_datos_seguro(url):
-    # Transformamos el link para descarga directa
-    csv_url = url.replace('/edit#gid=', '/export?format=csv&gid=')
-    
     try:
-        # Descarga manual para evitar errores de codificación (ASCII/UTF-8)
-        response = requests.get(csv_url)
+        # 1. Limpieza y transformación del link
+        base_url = url.split('/edit')[0]
+        # Extraemos el GID (ID de la pestaña) si existe, si no usamos 0
+        gid = "0"
+        if "gid=" in url:
+            gid = url.split("gid=")[1].split("&")[0]
         
-        # Si Google nos devuelve HTML, es porque el archivo NO es público
+        csv_url = f"{base_url}/export?format=csv&gid={gid}"
+        
+        # 2. Intento de descarga
+        response = requests.get(csv_url, timeout=10)
+        
+        # Si Google devuelve una página de login (HTML), es un tema de link o permiso
         if "<!DOCTYPE html>" in response.text:
-            st.error("🚨 Error de Acceso: El Google Sheet no es público.")
-            st.info("Ve a tu Sheet > Compartir > Cambia a 'Cualquier persona con el enlace'.")
+            st.error("🚨 Google Sheets devolvió una página web en lugar de datos.")
+            st.info("Revisa que el link en el código sea el correcto y que el Sheet esté como 'Cualquier persona con el enlace'.")
             st.stop()
             
-        # Forzamos la lectura correcta de caracteres en español
-        response.encoding = 'utf-8'
+        # 3. Procesamiento de datos
         df = pd.read_csv(io.StringIO(response.text))
         
-        # Limpieza de nombres de columnas (quitar espacios invisibles)
+        # Limpieza de columnas
         df.columns = [c.strip() for c in df.columns]
         
-        # Conversión de datos numéricos (ajustado a tus nuevos nombres de columna)
-        columnas_numericas = ['ph', 'Temperatura', 'Solidos suspendidos']
-        for col in columnas_numericas:
+        # Conversión de números (Puntos y Comas)
+        for col in ['ph', 'Temperatura', 'Solidos suspendidos']:
             if col in df.columns:
-                # Reemplazamos coma por punto para que Python lo entienda como número
                 df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', '.'), errors='coerce')
         
-        # Conversión de fecha
         if 'Fecha' in df.columns:
             df['Fecha'] = pd.to_datetime(df['Fecha'], dayfirst=True, errors='coerce')
             
         return df
 
     except Exception as e:
-        st.error(f"Fallo en la descarga: {e}")
+        st.error(f"No se pudo conectar con el Sheet: {e}")
         st.stop()
 
-# 2. EJECUCIÓN DEL DASHBOARD
-try:
+# --- EJECUCIÓN ---
+if SHEET_URL == "TU_LINK_DE_GOOGLE_SHEETS_AQUÍ":
+    st.warning("⚠️ Por favor, pega tu link de Google Sheets en la línea 12 del código en GitHub.")
+else:
     df = cargar_datos_seguro(SHEET_URL)
     
-    st.success("✅ Datos sincronizados correctamente")
+    if df is not None:
+        st.success("✅ Datos sincronizados correctamente")
+        
+        # Métricas rápidas
+        c1, c2, c3 = st.columns(3)
+        if 'ph' in df.columns:
+            c1.metric("pH Promedio", f"{df['ph'].mean():.2f}")
+        if 'Temperatura' in df.columns:
+            c2.metric("Temp. Promedio", f"{df['Temperatura'].mean():.1f} °C")
+        if 'Solidos suspendidos' in df.columns:
+            c3.metric("Sólidos Promedio", f"{df['Solidos suspendidos'].mean():.1f}")
 
-    # --- FILTROS EN BARRA LATERAL ---
-    st.sidebar.header("Opciones de Visualización")
-    if 'Proceso' in df.columns:
-        lista_procesos = df['Proceso'].dropna().unique()
-        seleccion = st.sidebar.multiselect("Seleccionar Proceso:", 
-                                          options=lista_procesos, 
-                                          default=lista_procesos)
-        df_filt = df[df['Proceso'].isin(seleccion)]
-    else:
-        df_filt = df
-
-    # --- MÉTRICAS PRINCIPALES ---
-    col1, col2, col3 = st.columns(3)
-    if 'ph' in df_filt.columns:
-        col1.metric("pH Promedio", f"{df_filt['ph'].mean():.2f}")
-    if 'Temperatura' in df_filt.columns:
-        col2.metric("Temp. Promedio", f"{df_filt['Temperatura'].mean():.1f} °C")
-    if 'Solidos suspendidos' in df_filt.columns:
-        col3.metric("Sólidos Promedio", f"{df_filt['Solidos suspendidos'].mean():.1f} mg/L")
-
-    # --- GRÁFICO DE TENDENCIA ---
-    st.markdown("### Histórico de Parámetros")
-    parametro = st.selectbox("Selecciona el parámetro a graficar:", ['ph', 'Temperatura', 'Solidos suspendidos'])
-    
-    if parametro in df_filt.columns and 'Fecha' in df_filt.columns:
-        fig = px.line(df_filt, 
-                     x='Fecha', 
-                     y=parametro, 
-                     color='Proceso' if 'Proceso' in df_filt.columns else None,
-                     markers=True,
-                     template="plotly_white",
-                     title=f"Evolución de {parametro} en el tiempo")
+        # Gráfico dinámico
+        st.markdown("### Tendencia de Parámetros")
+        opcion = st.selectbox("Elegir parámetro:", ['ph', 'Temperatura', 'Solidos suspendidos'])
+        
+        fig = px.line(df, x='Fecha', y=opcion, color='Proceso' if 'Proceso' in df.columns else None, 
+                     markers=True, template="plotly_white")
         st.plotly_chart(fig, use_container_width=True)
-
-    # --- TABLA DE DATOS ---
-    with st.expander("Ver tabla de datos completa"):
-        st.dataframe(df_filt)
-
-except Exception as e:
-    st.error(f"Error al procesar el dashboard: {e}")
+        
+        with st.expander("Ver tabla completa"):
+            st.dataframe(df)
