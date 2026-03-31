@@ -42,7 +42,7 @@ def cargar_desde_sheets(url):
 
 # 2. EJECUCIÓN DEL PROGRAMA
 try:
-    df = cargar_desde_sheets(SHEET_URL)
+    df = pd.read_csv(csv_url, encoding='utf-8')
     st.success("✅ Datos sincronizados correctamente")
 
     # --- FILTROS ---
