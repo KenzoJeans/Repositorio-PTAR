@@ -9,7 +9,7 @@ st.title("💧 Control de Vertimientos (Tiempo Real)")
 
 # --- INSTRUCCIÓN: Copia el link de tu navegador y pégalo aquí abajo ---
 # Asegúrate de que incluya desde 'https://' hasta el final
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1Wjlr5uC4YMBIQlTXPOcdXThFff1tks5jmLYcr5k5IPc/edit?usp=sharing"
+SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTYSPFoH-9tDls-EOx6h_4U0GWVcV8ip704Hx5dYkY-l1X4gwKvEHqujuxA_UfvQrB8TKuz4Sy5qQe3/pubhtml"
 
 @st.cache_data(ttl=60)
 def cargar_datos_seguro(url):
