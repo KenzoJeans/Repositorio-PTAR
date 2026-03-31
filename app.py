@@ -1,52 +1,58 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import requests
+import io
 
 st.set_page_config(page_title="Control PTAR", layout="wide")
 st.title("💧 Control de Vertimientos")
 
-# 1. ENLACE - Asegúrate de que termine en #gid=0 o el número de tu hoja
+# 1. ENLACE - Verifica que sea este exactamente
 SHEET_URL = "https://docs.google.com/spreadsheets/d/TU_ID_AQUÍ/edit#gid=0"
 
 @st.cache_data(ttl=10)
-def cargar_datos(url):
-    # Transformación del link
+def cargar_datos_seguro(url):
+    # Convertir link a descarga CSV
     csv_url = url.replace('/edit#gid=', '/export?format=csv&gid=')
     
-    # EL CAMBIO CLAVE: 'latin-1' es más robusto para archivos con tildes de Excel/Sheets
-    # encoding_errors='ignore' hará que si hay un carácter que no entiende, simplemente lo salte
-    df = pd.read_csv(csv_url, encoding='latin-1', encoding_errors='ignore')
+    # DESCARGA MANUAL PARA EVITAR EL ERROR DE CODEC
+    response = requests.get(csv_url)
+    response.encoding = 'utf-8' # Forzamos la lectura en UTF-8
     
-    # Limpiar espacios en blanco en los nombres de columnas
+    # Si falla el utf-8, intentamos con latin-1 automáticamente
+    try:
+        data = io.StringIO(response.text)
+        df = pd.read_csv(data)
+    except:
+        df = pd.read_csv(io.StringIO(response.content.decode('latin-1', errors='ignore')))
+
+    # Limpieza de columnas (según tu última imagen)
     df.columns = [c.strip() for c in df.columns]
     
-    # Convertir números (manejando comas decimales)
-    # Basado en tus nuevos nombres: 'ph', 'Temperatura', 'Solidos suspendidos'
+    # Convertir números
     for col in ['ph', 'Temperatura', 'Solidos suspendidos']:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', '.'), errors='coerce')
     
     if 'Fecha' in df.columns:
         df['Fecha'] = pd.to_datetime(df['Fecha'], dayfirst=True, errors='coerce')
-    
+        
     return df
 
 # 2. EJECUCIÓN
 try:
-    df = cargar_datos(SHEET_URL)
-    
-    # Mensaje de éxito que te muestra qué columnas leyó
-    st.success(f"✅ Datos cargados. Columnas: {', '.join(df.columns)}")
+    df = cargar_datos_seguro(SHEET_URL)
+    st.success("✅ ¡Conexión exitosa! Datos recuperados.")
 
-    # Filtros y Gráfico
+    # Mostrar tabla de verificación
+    st.dataframe(df.head())
+
+    # Gráfico
     if 'ph' in df.columns and 'Fecha' in df.columns:
         fig = px.line(df, x='Fecha', y='ph', color='Proceso' if 'Proceso' in df.columns else None,
-                     markers=True, title="Histórico de pH")
+                     markers=True, title="Tendencia de pH")
         st.plotly_chart(fig, use_container_width=True)
-    
-    # Mostrar tabla para verificar datos
-    st.dataframe(df)
 
 except Exception as e:
-    st.error(f"Error de conexión: {e}")   
-    
+    st.error(f"Error persistente: {e}")
+    st.info("Prueba esto: En Google Sheets, ve a Archivo > Configuración > Cambia la región a 'Estados Unidos'. A veces esto arregla el formato de exportación.")
