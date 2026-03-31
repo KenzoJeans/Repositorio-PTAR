@@ -3,76 +3,58 @@ import pandas as pd
 import plotly.express as px
 import numpy as np
 
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+
 # CONFIGURACIÓN
-st.set_page_config(page_title="Control de Vertimientos PTAR", layout="wide")
-st.title("💧 Control de Parámetros de Vertimientos Diarios")
-st.markdown("Análisis de pH, Temperatura, Conductividad y Sólidos")
+st.set_page_config(page_title="PTAR Real-Time", layout="wide")
+st.title("💧 Control de Vertimientos (Tiempo Real)")
 
-# 1. SIMULACIÓN DE DATOS REPRODUCIBLES (Para que veas el ejemplo ya mismo)
-@st.cache_data
-def generar_datos_ptar():
-    fechas = pd.date_range(start="2024-01-01", periods=90, freq='D')
-    procesos = ['Entrada', 'Reactor Bio', 'Sedimentador', 'Salida Final']
-    lista_datos = []
+# --- CONEXIÓN CON GOOGLE SHEETS ---
+# REEMPLAZA EL ENLACE DE ABAJO POR EL TUYO:
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1Wjlr5uC4YMBIQlTXPOcdXThFff1tks5jmLYcr5k5IPc/edit?usp=sharing"
+
+@st.cache_data(ttl=600) # Se actualiza cada 10 minutos automáticamente
+def cargar_desde_sheets(url):
+    # Truco para convertir el link de edición en link de descarga CSV
+    csv_url = url.replace('/edit#gid=', '/export?format=csv&gid=')
+    df = pd.read_csv(csv_url)
     
-    for fecha in fechas:
-        for proc in procesos:
-            lista_datos.append({
-                'Fecha': fecha,
-                'Proceso': proc,
-                'pH': np.random.uniform(6.5, 8.5),
-                'Temp_C': np.random.uniform(18, 25),
-                'Conductividad': np.random.uniform(400, 800),
-                'Solidos_Sed_ml_L': np.random.uniform(0.1, 1.5)
-            })
-    return pd.DataFrame(lista_datos)
+    # Limpieza de nombres (Basado en tu imagen)
+    df = df.rename(columns={
+        'Fecha del reporte:': 'Fecha',
+        'Proceso a reportar:': 'Proceso',
+        'pH (Use valores con coma para los decimales):': 'pH',
+        'Temperatura °C (Use valores con coma para los decimales):': 'Temp',
+        'Sólidos suspendidos mg/L (Use valores con coma para los decimales):': 'Solidos'
+    })
+    
+    # Convertir pH y otros a números (por si vienen con comas de Google)
+    # Reemplazamos coma por punto para que Python los entienda
+    for col in ['pH', 'Temp', 'Solidos']:
+        if df[col].dtype == object:
+            df[col] = df[col].str.replace(',', '.').astype(float)
+            
+    df['Fecha'] = pd.to_datetime(df['Fecha'], dayfirst=True)
+    return df
 
-df = generar_datos_ptar()
-df['Mes'] = df['Fecha'].dt.strftime('%B %Y')
+# Ejecutar carga
+try:
+    df = cargar_desde_sheets(SHEET_URL)
+    st.success("✅ Datos sincronizados con Google Sheets")
+except Exception as e:
+    st.error(f"Error al conectar: {e}")
+    st.stop()
 
-# 2. FILTROS LATERALES
-st.sidebar.header("Configuración del Informe")
-proceso_sel = st.sidebar.selectbox("Selecciona el Proceso:", df['Proceso'].unique())
-mes_sel = st.sidebar.multiselect("Filtrar por Mes:", options=df['Mes'].unique(), default=df['Mes'].unique())
+# --- EL RESTO DEL DASHBOARD (Filtros y Gráficos) ---
+st.sidebar.header("Filtros")
+procesos = st.sidebar.multiselect("Filtrar Procesos:", options=df['Proceso'].unique(), default=df['Proceso'].unique())
+df_filt = df[df['Proceso'].isin(procesos)]
 
-# Aplicar filtros
-mask = (df['Proceso'] == proceso_sel) & (df['Mes'].isin(mes_sel))
-df_filtrado = df[mask]
+col1, col2, col3 = st.columns(3)
+col1.metric("pH Promedio", f"{df_filt['pH'].mean():.2f}")
+col2.metric("Temperatura Prom.", f"{df_filt['Temp'].mean():.1f} °C")
+col3.metric("Sólidos Prom.", f"{df_filt['Solidos'].mean():.1f}")
 
-# 3. KPIs DE PROMEDIOS MENSUALES
-st.subheader(f"Resumen de Promedios: {proceso_sel}")
-c1, c2, c3, c4 = st.columns(4)
-
-with c1:
-    st.metric("pH Promedio", f"{df_filtrado['pH'].mean():.2f}")
-with c2:
-    st.metric("Temp. Media (°C)", f"{df_filtrado['Temp_C'].mean():.1f}")
-with c3:
-    st.metric("Conductividad Prom.", f"{df_filtrado['Conductividad'].mean():.0f} µS/cm")
-with c4:
-    st.metric("Sólidos Prom.", f"{df_filtrado['Solidos_Sed_ml_L'].mean():.2f} ml/L")
-
-st.divider()
-
-# 4. GRÁFICOS DE VARIACIÓN (Tendencia Diaria)
-st.subheader("Variación Diaria de Parámetros")
-tab1, tab2 = st.tabs(["pH y Temperatura", "Conductividad y Sólidos"])
-
-with tab1:
-    fig_ph = px.line(df_filtrado, x='Fecha', y=['pH', 'Temp_C'], 
-                     title=f"Evolución de pH y Temperatura en {proceso_sel}",
-                     labels={'value': 'Escala', 'variable': 'Parámetro'},
-                     template="plotly_white")
-    st.plotly_chart(fig_ph, use_container_width=True)
-
-with tab2:
-    fig_cond = px.scatter(df_filtrado, x='Fecha', y='Conductividad', 
-                          size='Solidos_Sed_ml_L', color='Solidos_Sed_ml_L',
-                          title="Conductividad vs Sólidos Sedimentables",
-                          labels={'Conductividad': 'Conductividad (µS/cm)'},
-                          template="plotly_white")
-    st.plotly_chart(fig_cond, use_container_width=True)
-
-# 5. TABLA DE DATOS PARA EL INFORME
-with st.expander("Ver Datos Detallados del Mes"):
-    st.write(df_filtrado.sort_values('Fecha', ascending=False))
+st.plotly_chart(px.line(df_filt, x='Fecha', y='pH', color='Proceso', markers=True, title="Tendencia de pH"), use_container_width=True)
