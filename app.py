@@ -11,16 +11,16 @@ SHEET_URL = "https://docs.google.com/spreadsheets/d/TU_ID_AQUÍ/edit#gid=0"
 
 @st.cache_data(ttl=600)
 def cargar_desde_sheets(url):
-    # Aquí es donde se define csv_url correctamente
+    # Formatear el link para que sea un CSV descargable
     csv_url = url.replace('/edit#gid=', '/export?format=csv&gid=')
     
-    # Leemos con UTF-8 para evitar el error de las tildes
+    # LEER CON UTF-8 PARA EVITAR EL ERROR DE LAS TILDES
     df = pd.read_csv(csv_url, encoding='utf-8')
     
-    # Limpieza de nombres de columnas
+    # Limpiar nombres de columnas (quitar espacios invisibles)
     df.columns = [c.strip() for c in df.columns]
     
-    # Renombrado inteligente
+    # Renombrar columnas largas por palabras clave
     nuevos_nombres = {}
     for col in df.columns:
         if 'Fecha' in col: nuevos_nombres[col] = 'Fecha'
@@ -31,50 +31,37 @@ def cargar_desde_sheets(url):
     
     df = df.rename(columns=nuevos_nombres)
     
-    # Limpieza de datos (Comas a Puntos)
+    # Convertir números: cambiar comas por puntos
     for col in ['pH', 'Temp', 'Solidos']:
         if col in df.columns:
             df[col] = df[col].astype(str).str.replace(',', '.').astype(float)
             
+    # Formatear la fecha
     if 'Fecha' in df.columns:
         df['Fecha'] = pd.to_datetime(df['Fecha'], dayfirst=True)
     
     return df
 
-# 2. EJECUCIÓN DEL PROGRAMA
+# 2. EJECUCIÓN DEL DASHBOARD
 try:
-    # Llamamos a la función y ella se encarga de todo lo interno
     df = cargar_desde_sheets(SHEET_URL)
-    
     st.success("✅ Datos sincronizados correctamente")
 
-    # Muestra los primeros datos para que verifiques que cargó bien
-    with st.expander("Ver previsualización de datos"):
-        st.write(df.head())
+    # Muestra los datos crudos para verificar
+    with st.expander("Ver previsualización de la tabla"):
+        st.dataframe(df.head())
 
-    # --- FILTROS ---
-    st.sidebar.header("Filtros")
-    if 'Proceso' in df.columns:
-        procesos_lista = df['Proceso'].unique()
-        sel = st.sidebar.multiselect("Filtrar Procesos:", options=procesos_lista, default=procesos_lista)
-        df_filt = df[df['Proceso'].isin(sel)]
-    else:
-        df_filt = df
-
-    # --- KPIs ---
+    # --- INDICADORES Y GRÁFICO ---
     col1, col2, col3 = st.columns(3)
-    if 'pH' in df_filt.columns:
-        col1.metric("pH Promedio", f"{df_filt['pH'].mean():.2f}")
-    if 'Temp' in df_filt.columns:
-        col2.metric("Temp. Promedio", f"{df_filt['Temp'].mean():.1f} °C")
-    if 'Solidos' in df_filt.columns:
-        col3.metric("Sólidos Prom.", f"{df_filt['Solidos'].mean():.1f}")
+    if 'pH' in df.columns:
+        col1.metric("pH Promedio", f"{df['pH'].mean():.2f}")
+    if 'Temp' in df.columns:
+        col2.metric("Temp. Promedio", f"{df['Temp'].mean():.1f} °C")
+    if 'Solidos' in df.columns:
+        col3.metric("Sólidos Prom.", f"{df['Solidos'].mean():.1f} mg/L")
 
-    # --- GRÁFICO ---
-    if 'pH' in df_filt.columns and 'Fecha' in df_filt.columns:
-        fig = px.line(df_filt, x='Fecha', y='pH', color='Proceso' if 'Proceso' in df_filt.columns else None,
-                     markers=True, title="Tendencia de pH", template="plotly_white")
-        st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(px.line(df, x='Fecha', y='pH', color='Proceso' if 'Proceso' in df.columns else None,
+                          markers=True, title="Histórico de pH", template="plotly_white"), use_container_width=True)
 
 except Exception as e:
-    st.error(f"Hubo un problema al procesar los datos: {e}")
+    st.error(f"Hubo un problema: {e}")
