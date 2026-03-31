@@ -41,11 +41,40 @@ def cargar_desde_sheets(url):
 
 # Ejecutar carga
 try:
-    df = cargar_desde_sheets(SHEET_URL)
-    st.success("✅ Datos sincronizados con Google Sheets")
-except Exception as e:
-    st.error(f"Error al conectar: {e}")
-    st.stop()
+    @st.cache_data(ttl=600)
+def cargar_desde_sheets(url):
+    csv_url = url.replace('/edit#gid=', '/export?format=csv&gid=')
+    df = pd.read_csv(csv_url)
+    
+    # --- PASO DE SEGURIDAD ---
+    # Esto elimina espacios en blanco al principio y final de cada nombre de columna
+    df.columns = [c.strip() for c in df.columns]
+    
+    # Vamos a usar una técnica más segura: buscar palabras clave en lugar de la frase exacta
+    nuevos_nombres = {}
+    for col in df.columns:
+        if 'Fecha' in col: nuevos_nombres[col] = 'Fecha'
+        elif 'Proceso' in col: nuevos_nombres[col] = 'Proceso'
+        elif 'pH' in col: nuevos_nombres[col] = 'pH'
+        elif 'Temperatura' in col: nuevos_nombres[col] = 'Temp'
+        elif 'Sólidos' in col or 'Sólidos' in col: nuevos_nombres[col] = 'Solidos'
+    
+    df = df.rename(columns=nuevos_nombres)
+    
+    # Verificar que las columnas clave existan ahora
+    columnas_necesarias = ['pH', 'Temp', 'Solidos', 'Fecha', 'Proceso']
+    for col in columnas_necesarias:
+        if col not in df.columns:
+            # Si aún falla, esto nos dirá qué columnas SÍ detectó para poder corregir
+            st.error(f"No encontré la columna '{col}'. Las columnas detectadas son: {list(df.columns)}")
+            st.stop()
+
+    # Limpieza de datos (Comas a Puntos)
+    for col in ['pH', 'Temp', 'Solidos']:
+        df[col] = df[col].astype(str).str.replace(',', '.').astype(float)
+            
+    df['Fecha'] = pd.to_datetime(df['Fecha'], dayfirst=True)
+    return df
 
 # --- EL RESTO DEL DASHBOARD (Filtros y Gráficos) ---
 st.sidebar.header("Filtros")
