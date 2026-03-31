@@ -1,79 +1,78 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import plotly.express as px
-import plotly.graph_objects as go
-from datetime import datetime
+import numpy as np
 
-# 1. CONFIGURACIÓN DE LA PÁGINA
-st.set_page_config(page_title="Dashboard Ejecutivo Gémini", layout="wide")
+# CONFIGURACIÓN
+st.set_page_config(page_title="Control de Vertimientos PTAR", layout="wide")
+st.title("💧 Control de Parámetros de Vertimientos Diarios")
+st.markdown("Análisis de pH, Temperatura, Conductividad y Sólidos")
 
-# Título y estilo
-st.title("📊 Dashboard de Rendimiento Empresarial")
-st.markdown("Generado automáticamente con **Python + Streamlit**")
+# 1. SIMULACIÓN DE DATOS REPRODUCIBLES (Para que veas el ejemplo ya mismo)
+@st.cache_data
+def generar_datos_ptar():
+    fechas = pd.date_range(start="2024-01-01", periods=90, freq='D')
+    procesos = ['Entrada', 'Reactor Bio', 'Sedimentador', 'Salida Final']
+    lista_datos = []
+    
+    for fecha in fechas:
+        for proc in procesos:
+            lista_datos.append({
+                'Fecha': fecha,
+                'Proceso': proc,
+                'pH': np.random.uniform(6.5, 8.5),
+                'Temp_C': np.random.uniform(18, 25),
+                'Conductividad': np.random.uniform(400, 800),
+                'Solidos_Sed_ml_L': np.random.uniform(0.1, 1.5)
+            })
+    return pd.DataFrame(lista_datos)
+
+df = generar_datos_ptar()
+df['Mes'] = df['Fecha'].dt.strftime('%B %Y')
+
+# 2. FILTROS LATERALES
+st.sidebar.header("Configuración del Informe")
+proceso_sel = st.sidebar.selectbox("Selecciona el Proceso:", df['Proceso'].unique())
+mes_sel = st.sidebar.multiselect("Filtrar por Mes:", options=df['Mes'].unique(), default=df['Mes'].unique())
+
+# Aplicar filtros
+mask = (df['Proceso'] == proceso_sel) & (df['Mes'].isin(mes_sel))
+df_filtrado = df[mask]
+
+# 3. KPIs DE PROMEDIOS MENSUALES
+st.subheader(f"Resumen de Promedios: {proceso_sel}")
+c1, c2, c3, c4 = st.columns(4)
+
+with c1:
+    st.metric("pH Promedio", f"{df_filtrado['pH'].mean():.2f}")
+with c2:
+    st.metric("Temp. Media (°C)", f"{df_filtrado['Temp_C'].mean():.1f}")
+with c3:
+    st.metric("Conductividad Prom.", f"{df_filtrado['Conductividad'].mean():.0f} µS/cm")
+with c4:
+    st.metric("Sólidos Prom.", f"{df_filtrado['Solidos_Sed_ml_L'].mean():.2f} ml/L")
+
 st.divider()
 
-# 2. GENERACIÓN DE DATOS (Simulación)
-@st.cache_data # Esto hace que la app sea rápida y no recargue datos innecesariamente
-def cargar_datos():
-    np.random.seed(42)
-    fechas = pd.date_range(start="2023-01-01", end="2023-12-31", freq='D')
-    n_dias = len(fechas)
-    df = pd.DataFrame({
-        'Fecha': fechas,
-        'Ventas': np.random.uniform(1000, 5000, n_dias) + np.sin(np.linspace(0, 4*np.pi, n_dias))*500,
-        'Costos': np.random.uniform(500, 3000, n_dias),
-        'Region': np.random.choice(['Norte', 'Sur', 'Este', 'Oeste'], n_dias),
-        'Producto': np.random.choice(['Software Plan A', 'Software Plan B', 'Soporte Premium'], n_dias),
-        'Satisfaccion': np.random.uniform(3.5, 5.0, n_dias)
-    })
-    df['Ganancia'] = df['Ventas'] - df['Costos']
-    df['Mes'] = df['Fecha'].dt.strftime('%B')
-    return df
+# 4. GRÁFICOS DE VARIACIÓN (Tendencia Diaria)
+st.subheader("Variación Diaria de Parámetros")
+tab1, tab2 = st.tabs(["pH y Temperatura", "Conductividad y Sólidos"])
 
-df = cargar_datos()
+with tab1:
+    fig_ph = px.line(df_filtrado, x='Fecha', y=['pH', 'Temp_C'], 
+                     title=f"Evolución de pH y Temperatura en {proceso_sel}",
+                     labels={'value': 'Escala', 'variable': 'Parámetro'},
+                     template="plotly_white")
+    st.plotly_chart(fig_ph, use_container_width=True)
 
-# 3. FILTROS EN LA BARRA LATERAL (Sidebar)
-st.sidebar.header("Filtros de Informe")
-region_sel = st.sidebar.multiselect("Selecciona Región:", 
-                                    options=df["Region"].unique(), 
-                                    default=df["Region"].unique())
+with tab2:
+    fig_cond = px.scatter(df_filtrado, x='Fecha', y='Conductividad', 
+                          size='Solidos_Sed_ml_L', color='Solidos_Sed_ml_L',
+                          title="Conductividad vs Sólidos Sedimentables",
+                          labels={'Conductividad': 'Conductividad (µS/cm)'},
+                          template="plotly_white")
+    st.plotly_chart(fig_cond, use_container_width=True)
 
-# Filtrar el dataframe basado en la selección
-df_filtrado = df[df["Region"].isin(region_sel)]
-
-# 4. KPIs PRINCIPALES (Métricas en columnas)
-col1, col2, col3, col4 = st.columns(4)
-
-with col1:
-    st.metric("Total Ventas", f"${df_filtrado['Ventas'].sum():,.0f}", "+12%")
-with col2:
-    st.metric("Ganancia Neta", f"${df_filtrado['Ganancia'].sum():,.0f}", "5%")
-with col3:
-    st.metric("Margen Promedio", f"{(df_filtrado['Ganancia'].sum()/df_filtrado['Ventas'].sum())*100:.1f}%")
-with col4:
-    st.metric("Satisfacción", f"{df_filtrado['Satisfaccion'].mean():.2f} / 5", "⭐")
-
-st.divider()
-
-# 5. GRÁFICOS INTERACTIVOS
-col_izq, col_der = st.columns(2)
-
-with col_izq:
-    # Tendencia Mensual
-    df_mensual = df_filtrado.groupby(df_filtrado['Fecha'].dt.month)['Ventas'].sum().reset_index()
-    fig_linea = px.line(df_mensual, x='Fecha', y='Ventas', 
-                        title="Evolución de Ventas por Mes",
-                        markers=True, template="plotly_white")
-    st.plotly_chart(fig_linea, use_container_width=True)
-
-with col_der:
-    # Ventas por Producto
-    fig_barras = px.bar(df_filtrado, x="Producto", y="Ventas", 
-                         color="Producto", title="Ventas por Categoría",
-                         template="plotly_white")
-    st.plotly_chart(fig_barras, use_container_width=True)
-
-# 6. TABLA DE DATOS (Opcional)
-with st.expander("Ver base de datos completa"):
-    st.dataframe(df_filtrado)
+# 5. TABLA DE DATOS PARA EL INFORME
+with st.expander("Ver Datos Detallados del Mes"):
+    st.write(df_filtrado.sort_values('Fecha', ascending=False))
