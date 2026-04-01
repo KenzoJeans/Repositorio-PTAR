@@ -64,7 +64,7 @@ try:
     if len(rango_fecha) == 2:
         df_filtrado = df_filtrado[(df_filtrado["fecha"] >= rango_fecha[0]) & (df_filtrado["fecha"] <= rango_fecha[1])]
 
-    # --- MÉTRICAS ---
+    # --- MÉTRICAS PRINCIPALES ---
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("Promedio pH", f"{df_filtrado['ph'].mean():.2f}")
@@ -73,7 +73,19 @@ try:
     with col3:
         st.metric("SST Promedio", f"{df_filtrado['sst'].mean():.2f}")
     with col4:
-        st.metric("N° Reportes", len(df_filtrado))
+        st.metric("Total Registros", len(df_filtrado))
+
+    # --- NUEVA SECCIÓN: CONTADOR POR PROCESO ---
+    st.markdown("### 📊 Cantidad de Registros por Proceso")
+    
+    # Creamos el conteo
+    conteo_procesos = df_filtrado['proceso'].value_counts()
+    
+    # Mostramos los conteos en columnas pequeñas para que se vea ordenado
+    columnas_conteo = st.columns(len(conteo_procesos))
+    for i, (proc, cant) in enumerate(conteo_procesos.items()):
+        with columnas_conteo[i]:
+            st.info(f"**{proc}** \n\n {cant} registros")
 
     # --- ALERTAS ---
     st.markdown("### ⚠️ Estado de Cumplimiento")
@@ -105,7 +117,6 @@ try:
         st.subheader("📋 Detalle de Datos")
         st.dataframe(df_filtrado[['fecha', 'proceso', 'ph', 'temp', 'sst']], use_container_width=True)
 
-# AQUÍ ES DONDE FALTABA EL CIERRE:
 except Exception as e:
     st.error(f"Error en el procesamiento: {e}")
     st.info("Revisa la conexión a Google Sheets y los Secrets.")
