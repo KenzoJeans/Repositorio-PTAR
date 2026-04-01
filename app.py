@@ -41,7 +41,7 @@ try:
 
     # --- BARRA LATERAL (FILTROS) ---
     # Puedes usar una URL directa a la imagen o la ruta de un archivo local
-logo_url = "https://kenzojeans.com.co/" 
+logo_url = "PEGAR LOGO" 
 
 st.sidebar.image(logo_url, use_container_width=True)
 st.sidebar.header("Filtros de Análisis")
