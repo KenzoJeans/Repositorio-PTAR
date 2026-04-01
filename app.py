@@ -6,7 +6,7 @@ import plotly.express as px
 # 1. Configuración de página
 st.set_page_config(page_title="Sistema Control PTAR", layout="wide", page_icon="💧")
 st.markdown('<style>div.block-container{padding-top:2rem;}</style>', unsafe_allow_html=True)
-st.markdown('<p style="font-size:30px; font-weight:bold; color:#1E88E5;">🏗️ Gestión Integral - Planta de Tratamiento</p>', unsafe_allow_html=True)
+st.markdown('<p style="font-size:30px; font-weight:bold; color:#1E88E5;"> SGA - Planta de Tratamiento</p>', unsafe_allow_html=True)
 
 # 2. Función de limpieza de datos
 def limpiar_datos_ptar(df):
