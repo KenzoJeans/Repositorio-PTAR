@@ -42,7 +42,7 @@ try:
     # --- BARRA LATERAL (LOGO Y FILTROS) ---
     # Aquí cargamos el logo que subiste a la raíz del repositorio
     try:
-        st.sidebar.image("logo_kenzo.png", use_container_width=True)
+        st.sidebar.image("logo-white-kenzo.png", use_container_width=True)
     except:
         st.sidebar.warning("Logo no encontrado. Verifica que el archivo sea 'logo_kenzo.png'")
 
