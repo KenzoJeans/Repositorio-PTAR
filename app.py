@@ -40,11 +40,11 @@ try:
     df_base = limpiar_datos_ptar(df_raw)
 
     # --- BARRA LATERAL (LOGO Y FILTROS) ---
-    # Ajusta el nombre según lo tengas en tu GitHub (ej: "logo-white-kenzo.png")
+    # Usando el nombre que confirmamos en tus capturas
     try:
-        st.sidebar.image("logo-white-kenzo.png", use_container_width=True)
+        st.sidebar.image("logo_kenzo.png", use_container_width=True)
     except:
-        st.sidebar.error("Error: No se encontró el archivo del logo en el repositorio.")
+        st.sidebar.warning("Verifica el nombre del archivo del logo.")
 
     st.sidebar.header("Filtros de Análisis")
     
@@ -55,7 +55,7 @@ try:
         if len(rango_fechas) == 2:
             df_base = df_base[(df_base['fecha'] >= rango_fechas[0]) & (df_base['fecha'] <= rango_fechas[1])]
 
-    # Filtro de Proceso
+    # Filtro de Proceso (Multiselect)
     if not df_base.empty and 'proceso' in df_base.columns:
         lista_p = sorted(df_base['proceso'].unique().tolist())
         procesos_sel = st.sidebar.multiselect("Selecciona el Proceso:", lista_p, default=lista_p)
@@ -63,87 +63,43 @@ try:
     else:
         df_filtrado = df_base
 
-    # --- FILTRO POR QUÍMICOS ---
+    # --- FILTRO POR BÚSQUEDA DE TEXTO (QUÍMICOS) ---
     if not df_filtrado.empty and 'quimicos' in df_filtrado.columns:
-        lista_q = sorted(df_filtrado['quimicos'].dropna().unique().tolist())
-        if lista_q:
-            quimicos_sel = st.sidebar.multiselect(
-                "Selecciona el Químico:", 
-                options=lista_q, 
-                default=lista_q
-            )
-            df_filtrado = df_filtrado[df_filtrado['quimicos'].isin(quimicos_sel)]
+        busqueda_q = st.sidebar.text_input("🔍 Buscar Químico (escribe aquí):", "")
+        
+        if busqueda_q:
+            # Filtra filas que contengan el texto escrito, ignorando mayúsculas/minúsculas
+            df_filtrado = df_filtrado[df_filtrado['quimicos'].astype(str).str.contains(busqueda_q, case=False, na=False)]
 
     # --- CUERPO PRINCIPAL ---
     t1, t2, t3 = st.tabs(["📊 Dashboard Vertimientos", "🧪 Agua Tratada", "🛠️ Mantenimiento"])
 
     with t1:
         if not df_filtrado.empty:
-            # --- MÉTRICAS CON SEMÁFORO ---
+            # Métricas
             m1, m2, m3, m4 = st.columns(4)
-            
             avg_ph = df_filtrado['ph'].mean()
             avg_temp = df_filtrado['temp'].mean()
             avg_sst = df_filtrado['sst'].mean()
 
-            # Semáforo pH (Norma: 6.0 - 9.0)
-            status_ph = "normal" if 6.0 <= avg_ph <= 9.0 else "inverse"
-            m1.metric("Promedio pH", f"{avg_ph:.2f}", 
-                      delta="EN NORMA" if status_ph == "normal" else "FUERA DE RANGO",
-                      delta_color=status_ph)
-
-            # Semáforo Temperatura (Límite: 40°C)
-            status_temp = "normal" if avg_temp <= 40 else "inverse"
-            m2.metric("Temp Promedio", f"{avg_temp:.1f} °C",
-                      delta="ESTABLE" if status_temp == "normal" else "ELEVADA",
-                      delta_color=status_temp)
-
-            # Semáforo SST
-            status_sst = "normal" if avg_sst <= 50 else "inverse"
-            m3.metric("SST Promedio", f"{avg_sst:.2f}",
-                      delta="ÓPTIMO" if status_sst == "normal" else "CRÍTICO",
-                      delta_color=status_sst)
-
+            m1.metric("Promedio pH", f"{avg_ph:.2f}", delta_color="normal" if 6<=avg_ph<=9 else "inverse")
+            m2.metric("Temp Promedio", f"{avg_temp:.1f} °C")
+            m3.metric("SST Promedio", f"{avg_sst:.2f}")
             m4.metric("Total Registros", len(df_filtrado))
 
-            # --- GRÁFICAS ---
+            # Gráfica de pH
             st.subheader("📈 Análisis de pH")
             fig_t = px.line(df_filtrado.sort_values('fecha'), x='fecha', y='ph', markers=True, title="Evolución Histórica de pH")
-            fig_t.add_hline(y=9.0, line_dash="dash", line_color="red")
-            fig_t.add_hline(y=6.0, line_dash="dash", line_color="red")
             st.plotly_chart(fig_t, use_container_width=True)
 
-            # Gráfica de puntos por proceso
-            df_p = df_filtrado.groupby('proceso')['ph'].mean().reset_index()
-            fig_p = px.scatter(df_p, x='proceso', y='ph', color='ph', 
-                             color_continuous_scale='RdYlGn_r', range_color=[5, 10], size=[15]*len(df_p),
-                             title="Promedio de pH por Etapa")
-            fig_p.update_traces(mode='lines+markers', line_color='lightgrey')
-            st.plotly_chart(fig_p, use_container_width=True)
-
-            # SST y Temperatura
-            col_a, col_b = st.columns(2)
-            with col_a:
-                st.subheader("📊 Sólidos (SST)")
-                df_s = df_filtrado.groupby('proceso')['sst'].mean().reset_index()
-                fig_s = px.bar(df_s, x='proceso', y='sst', color='sst', title="Promedio SST por Etapa")
-                st.plotly_chart(fig_s, use_container_width=True)
-
-            with col_b:
-                st.subheader("🌡️ Temperatura")
-                df_temp_plot = df_filtrado.groupby('proceso')['temp'].mean().reset_index()
-                fig_temp = px.line(df_temp_plot, x='proceso', y='temp', markers=True, title="Temperatura por Etapa")
-                st.plotly_chart(fig_temp, use_container_width=True)
-
+            # Tabla de Datos
             st.subheader("📋 Detalle de Datos")
             st.dataframe(df_filtrado, use_container_width=True)
         else:
-            st.warning("No hay datos para los filtros seleccionados.")
+            st.warning("No se encontraron resultados para esa búsqueda.")
 
-    with t2:
-        st.info("Módulo de Agua Tratada en desarrollo.")
-    with t3:
-        st.info("Módulo de Mantenimiento en desarrollo.")
+    with t2: st.info("Módulo de Agua Tratada.")
+    with t3: st.info("Módulo de Mantenimiento.")
 
 except Exception as e:
-    st.error(f"Se detectó un error en la aplicación: {e}")
+    st.error(f"Se detectó un error: {e}")
