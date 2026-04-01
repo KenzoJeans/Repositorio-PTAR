@@ -6,7 +6,7 @@ import plotly.express as px
 # 1. Configuración de página
 st.set_page_config(page_title="Sistema Control PTAR", layout="wide", page_icon="💧")
 st.markdown('<style>div.block-container{padding-top:2rem;}</style>', unsafe_allow_html=True)
-st.markdown('<p style="font-size:30px; font-weight:bold; color:#1E88E5;"> SGA - Planta de Tratamiento</p>', unsafe_allow_html=True)
+st.markdown('<p style="font-size:30px; font-weight:bold; color:#1E88E5;">🏗️ Gestión Integral - Planta de Tratamiento</p>', unsafe_allow_html=True)
 
 # 2. Función de limpieza de datos
 def limpiar_datos_ptar(df):
@@ -39,12 +39,13 @@ try:
     df_raw = conn.read(ttl=0)
     df_base = limpiar_datos_ptar(df_raw)
 
-    # --- BARRA LATERAL (FILTROS) ---
-    # Puedes usar una URL directa a la imagen o la ruta de un archivo local
-logo_url = "logo-white-kenzo.png" 
+    # --- BARRA LATERAL (LOGO Y FILTROS) ---
+    # Aquí cargamos el logo que subiste a la raíz del repositorio
+    try:
+        st.sidebar.image("logo_kenzo.png", use_container_width=True)
+    except:
+        st.sidebar.warning("Logo no encontrado. Verifica que el archivo sea 'logo_kenzo.png'")
 
-st.sidebar.image(logo_url, use_container_width=True)
-st.sidebar.header("Filtros de Análisis")
     st.sidebar.header("Filtros de Análisis")
     
     if not df_base.empty and 'fecha' in df_base.columns:
@@ -75,7 +76,7 @@ st.sidebar.header("Filtros de Análisis")
             # Semáforo pH (Norma: 6.0 - 9.0)
             status_ph = "normal" if 6.0 <= avg_ph <= 9.0 else "inverse"
             m1.metric("Promedio pH", f"{avg_ph:.2f}", 
-                      delta="DENTRO DE RANGO" if status_ph == "normal" else "FUERA DE RANGO",
+                      delta="EN NORMA" if status_ph == "normal" else "FUERA DE RANGO",
                       delta_color=status_ph)
 
             # Semáforo Temperatura (Límite: 40°C)
@@ -84,10 +85,10 @@ st.sidebar.header("Filtros de Análisis")
                       delta="ESTABLE" if status_temp == "normal" else "ELEVADA",
                       delta_color=status_temp)
 
-            # Semáforo SST (Límite: 50)
+            # Semáforo SST
             status_sst = "normal" if avg_sst <= 50 else "inverse"
             m3.metric("SST Promedio", f"{avg_sst:.2f}",
-                      delta="ÓPTIMO" if status_sst == "normal" else "REVISAR",
+                      delta="ÓPTIMO" if status_sst == "normal" else "CRÍTICO",
                       delta_color=status_sst)
 
             m4.metric("Total Registros", len(df_filtrado))
@@ -99,23 +100,23 @@ st.sidebar.header("Filtros de Análisis")
             fig_t.add_hline(y=6.0, line_dash="dash", line_color="red")
             st.plotly_chart(fig_t, use_container_width=True)
 
-            # Semáforo de pH por Proceso
+            # Gráfica de puntos por proceso
             df_p = df_filtrado.groupby('proceso')['ph'].mean().reset_index()
             fig_p = px.scatter(df_p, x='proceso', y='ph', color='ph', 
                              color_continuous_scale='RdYlGn_r', range_color=[5, 10], size=[15]*len(df_p),
-                             title="Promedio de pH por Proceso")
+                             title="Promedio de pH por Etapa")
             fig_p.update_traces(mode='lines+markers', line_color='lightgrey')
             st.plotly_chart(fig_p, use_container_width=True)
 
             # SST y Temperatura
-            col_sst, col_temp = st.columns(2)
-            with col_sst:
+            col_a, col_b = st.columns(2)
+            with col_a:
                 st.subheader("📊 Sólidos (SST)")
                 df_s = df_filtrado.groupby('proceso')['sst'].mean().reset_index()
                 fig_s = px.bar(df_s, x='proceso', y='sst', color='sst', title="Promedio SST por Etapa")
                 st.plotly_chart(fig_s, use_container_width=True)
 
-            with col_temp:
+            with col_b:
                 st.subheader("🌡️ Temperatura")
                 df_temp_plot = df_filtrado.groupby('proceso')['temp'].mean().reset_index()
                 fig_temp = px.line(df_temp_plot, x='proceso', y='temp', markers=True, title="Temperatura por Etapa")
@@ -124,10 +125,10 @@ st.sidebar.header("Filtros de Análisis")
             st.subheader("📋 Detalle de Datos")
             st.dataframe(df_filtrado, use_container_width=True)
         else:
-            st.warning("No hay datos para mostrar con los filtros actuales.")
+            st.warning("No hay datos para los filtros seleccionados.")
 
     with t2: st.info("Módulo de Agua Tratada.")
     with t3: st.info("Módulo de Mantenimiento.")
 
 except Exception as e:
-    st.error(f"Se detectó un error en la aplicación: {e}")
+    st.error(f"Error en la aplicación: {e}")
