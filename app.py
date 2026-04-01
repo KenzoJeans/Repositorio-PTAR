@@ -6,10 +6,9 @@ import plotly.express as px
 # 1. Configuración de página
 st.set_page_config(page_title="Sistema Control PTAR", layout="wide", page_icon="💧")
 st.markdown('<style>div.block-container{padding-top:2rem;}</style>', unsafe_allow_html=True)
-
 st.markdown('<p style="font-size:30px; font-weight:bold; color:#1E88E5;">🏗️ Gestión Integral - Planta de Tratamiento</p>', unsafe_allow_html=True)
 
-# 2. Función de limpieza
+# 2. Función de limpieza de datos
 def limpiar_datos_ptar(df):
     if df is None or df.empty: return pd.DataFrame()
     df.columns = df.columns.str.strip()
@@ -32,7 +31,7 @@ def limpiar_datos_ptar(df):
     
     return df.dropna(subset=['ph'])
 
-# 3. Conexión y Carga
+# 3. Conexión y Carga de Datos
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
     df_raw = conn.read(ttl=0)
@@ -52,7 +51,7 @@ try:
 
     with t1:
         if not df_filtrado.empty:
-            # MÉTRICAS
+            # MÉTRICAS SUPERIORES
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("Promedio pH", f"{df_filtrado['ph'].mean():.2f}")
             m2.metric("Temp Promedio", f"{df_filtrado['temp'].mean():.1f} °C")
@@ -69,4 +68,30 @@ try:
             fig_tiempo.add_hline(y=6.0, line_dash="dash", line_color="red", annotation_text="Límite Mín")
             st.plotly_chart(fig_tiempo, use_container_width=True)
 
-            # 2. Promedio de pH por Proceso (
+            # 2. Promedio de pH por Proceso (Gráfica de líneas)
+            df_proc = df_filtrado.groupby('proceso')['ph'].mean().reset_index()
+            fig_proc = px.line(df_proc, x='proceso', y='ph', markers=True,
+                             title="Promedio de pH por Proceso",
+                             color_discrete_sequence=['#43A047'])
+            st.plotly_chart(fig_proc, use_container_width=True)
+
+            # --- SECCIÓN DE SÓLIDOS ---
+            st.subheader("📊 Análisis de Sólidos (SST)")
+            df_sst_proc = df_filtrado.groupby('proceso')['sst'].mean().reset_index()
+            fig_sst = px.bar(df_sst_proc, x='proceso', y='sst', 
+                            color='proceso', title="Promedio de Sólidos (SST) por Proceso")
+            st.plotly_chart(fig_sst, use_container_width=True)
+
+            st.subheader("📋 Detalle de Datos")
+            st.dataframe(df_filtrado, use_container_width=True)
+        else:
+            st.warning("Selecciona al menos un proceso en la barra lateral.")
+
+    with t2:
+        st.info("Módulo de Agua Tratada configurado.")
+
+    with t3:
+        st.info("Módulo de Mantenimiento configurado.")
+
+except Exception as e:
+    st.error(f"Error en la ejecución: {e}")
