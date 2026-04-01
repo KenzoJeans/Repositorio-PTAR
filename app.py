@@ -5,7 +5,7 @@ import pandas as pd
 # 1. Configuración de la página
 st.set_page_config(page_title="Dashboard PTAR", layout="wide", page_icon="💧")
 
-st.title("📊 Monitor de Parámetros de Vertimiento")
+st.title("📊 Monitor de Parámetros de vertimiento en Planta de tratamiento - Kenzo Jeans SAS")
 st.markdown("---")
 
 # 2. Función de limpieza y normalización de datos
