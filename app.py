@@ -6,48 +6,50 @@ import pandas as pd
 st.set_page_config(page_title="Gestión PTAR Pro", layout="wide", page_icon="💧")
 st.markdown('<p style="font-size:30px; font-weight:bold; color:#1E88E5;">🏗️ Gestión Integral - Planta de Tratamiento</p>', unsafe_allow_html=True)
 
-# 2. Función de limpieza avanzada
-def procesar_datos(df):
+# 2. Función de Limpieza Inteligente (Busca coincidencias parciales)
+def procesar_datos_ptar(df):
     if df is None or df.empty:
         return pd.DataFrame()
     
-    # Limpiamos nombres de columnas
-    df.columns = df.columns.str.strip()
+    # Limpiamos nombres de columnas originales
+    df.columns = [str(c).strip() for c in df.columns]
     
-    # Diccionario de traducción de nombres (ajusta según tus títulos reales en el Excel)
-    mapeo = {
-        'Marca temporal': 'timestamp', 
-        'Fecha del reporte': 'fecha', 
-        'Proceso a reportar': 'proceso', 
-        'ph': 'ph', 
-        'Temperatura': 'temp', 
-        'Solidos suspendidos': 'sst'
-    }
-    df = df.rename(columns=mapeo)
+    # Mapeo por palabras clave para no fallar por una letra
+    columnas_finales = {}
+    for col in df.columns:
+        c_low = col.lower()
+        if 'ph' in c_low: columnas_finales[col] = 'ph'
+        elif 'temp' in c_low: columnas_finales[col] = 'temp'
+        elif 'solido' in c_low or 'sst' in c_low: columnas_finales[col] = 'sst'
+        elif 'proceso' in c_low: columnas_finales[col] = 'proceso'
+        elif 'fecha' in c_low: columnas_finales[col] = 'fecha'
+        elif 'caudal' in c_low: columnas_finales[col] = 'caudal'
+    
+    df = df.rename(columns=columnas_finales)
 
-    # Convertir a números asegurando el formato (puntos y comas)
-    cols_num = ['ph', 'temp', 'sst']
-    for col in cols_num:
+    # Convertir a números (limpiando comas y puntos)
+    for col in ['ph', 'temp', 'sst', 'caudal']:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', '.'), errors='coerce')
     
+    # Manejo de fechas
     if 'fecha' in df.columns:
-        df['fecha'] = pd.to_datetime(df['fecha']).dt.date
+        df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce').dt.date
     
     return df
 
-# 3. Conexión y carga individual de pestañas
+# 3. Conexión y carga
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
     
-    # Cargamos cada pestaña de forma independiente para evitar que una falle el dashboard completo
+    # Leemos con nombres de pestañas en minúsculas (según tu imagen previa)
     try:
-        df_v = procesar_datos(conn.read(worksheet="vertimiento", ttl=0))
+        df_v = procesar_datos_ptar(conn.read(worksheet="vertimiento", ttl=0))
     except:
         df_v = pd.DataFrame()
 
     try:
-        df_t = procesar_datos(conn.read(worksheet="tratada", ttl=0))
+        df_t = procesar_datos_ptar(conn.read(worksheet="tratada", ttl=0))
     except:
         df_t = pd.DataFrame()
 
@@ -56,7 +58,7 @@ try:
     except:
         df_m = pd.DataFrame()
 
-    # --- PESTAÑAS DEL DASHBOARD ---
+    # --- PESTAÑAS ---
     t1, t2, t3 = st.tabs(["📊 Vertimientos", "🧪 Agua Tratada", "🛠️ Mantenimiento"])
 
     with t1:
@@ -69,25 +71,29 @@ try:
             c4.metric("Registros", len(df_v))
             
             # Gráfica
-            st.subheader("Análisis de Tendencia")
-            st.line_chart(df_v.groupby('fecha')['ph'].mean())
+            st.subheader("Análisis de Tendencia (pH)")
+            if not df_v['fecha'].isnull().all():
+                st.line_chart(df_v.groupby('fecha')['ph'].mean())
+            
+            st.subheader("Vista de Datos")
             st.dataframe(df_v, use_container_width=True)
         else:
-            st.error("⚠️ No hay datos en 'vertimiento'. Revisa que la Fila 1 tenga los títulos.")
+            st.error("⚠️ El sistema no logra identificar las columnas en la pestaña 'vertimiento'.")
+            st.info("Asegúrate de que los títulos estén en la Fila 1 de la hoja 'vertimiento'.")
 
     with t2:
         if not df_t.empty:
             st.subheader("Resultados Agua Tratada")
             st.dataframe(df_t, use_container_width=True)
         else:
-            st.info("ℹ️ Esperando datos en la pestaña 'tratada'.")
+            st.info("Esperando datos en la pestaña 'tratada'.")
 
     with t3:
         if not df_m.empty:
-            st.subheader("Bitácora de Equipos")
+            st.subheader("Bitácora de Mantenimiento")
             st.dataframe(df_m, use_container_width=True)
         else:
-            st.info("ℹ️ No hay mantenimientos registrados aún.")
+            st.info("No hay registros en la pestaña 'mantenimiento'.")
 
 except Exception as e:
-    st.error(f"Error crítico: {e}")
+    st.error(f"Error de conexión: {e}")
