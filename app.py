@@ -71,19 +71,19 @@ try:
             avg_temp = df_filtrado['temp'].mean()
             avg_sst = df_filtrado['sst'].mean()
 
-            # Lógica Semáforo pH (Rango Norma: 6.0 - 9.0)
+            # Semáforo pH (Rango Norma: 6.0 - 9.0)
             color_ph = "normal" if 6.0 <= avg_ph <= 9.0 else "inverse"
             m1.metric("Promedio pH", f"{avg_ph:.2f}", 
                       delta="EN NORMA" if color_ph == "normal" else "FUERA DE RANGO",
                       delta_color=color_ph)
 
-            # Lógica Semáforo Temp (Límite sugerido: 40°C)
+            # Semáforo Temp (Límite: 40°C)
             color_temp = "normal" if avg_temp <= 40 else "inverse"
             m2.metric("Temp Promedio", f"{avg_temp:.1f} °C",
                       delta="ESTABLE" if color_temp == "normal" else "ELEVADA",
                       delta_color=color_temp)
 
-            # Lógica Semáforo SST
+            # Semáforo SST (Límite sugerido: 50)
             color_sst = "normal" if avg_sst <= 50 else "inverse"
             m3.metric("SST Promedio", f"{avg_sst:.2f}",
                       delta="ÓPTIMO" if color_sst == "normal" else "CRÍTICO",
@@ -93,12 +93,4 @@ try:
 
             # --- SECCIÓN GRÁFICAS ---
             st.subheader("📈 Análisis de pH")
-            fig_t = px.line(df_filtrado.sort_values('fecha'), x='fecha', y='ph', markers=True, title="Evolución Histórica de pH")
-            fig_t.add_hline(y=9.0, line_dash="dash", line_color="red", annotation_text="Límite Máx")
-            fig_t.add_hline(y=6.0, line_dash="dash", line_color="red", annotation_text="Límite Mín")
-            st.plotly_chart(fig_t, use_container_width=True)
-
-            # Semáforo de puntos por proceso
-            df_p = df_filtrado.groupby('proceso')['ph'].mean().reset_index()
-            fig_p = px.scatter(df_p, x='proceso', y='ph', color='ph', 
-                             color
+            fig_t = px.line(df_filtr
