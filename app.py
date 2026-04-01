@@ -91,6 +91,29 @@ try:
     with tab2:
         st.dataframe(df_filtrado, use_container_width=True)
 
+# Crear pestañas para organizar las gráficas
+tab1, tab2, tab3 = st.tabs(["📈 Tendencias", "📊 Comparativa", "🧪 Análisis Químico"])
+
+with tab1:
+    # Aquí va tu gráfico de líneas actual
+    st.plotly_chart(fig_lineas, use_container_width=True)
+
+with tab2:
+    # Gráfico de barras: Promedio de Sólidos por Proceso
+    fig_barras = px.bar(df_filt.groupby('Proceso')['Solidos suspendidos'].mean().reset_index(), 
+                        x='Proceso', y='Solidos suspendidos', 
+                        title="Promedio de Sólidos por Proceso",
+                        color='Proceso', template="plotly_white")
+    st.plotly_chart(fig_barras, use_container_width=True)
+
+with tab3:
+    # Gráfico de dispersión: pH vs Temperatura
+    fig_dispersion = px.scatter(df_filt, x='Temperatura', y='ph', 
+                                color='Proceso', hover_data=['Fecha'],
+                                title="Relación pH vs Temperatura",
+                                template="plotly_white")
+    st.plotly_chart(fig_dispersion, use_container_width=True)
+
 except Exception as e:
     st.error(f"Se presentó un detalle técnico: {e}")
     st.info("💡 Tip: Revisa que las columnas en Google Sheets no hayan cambiado de nombre.")
