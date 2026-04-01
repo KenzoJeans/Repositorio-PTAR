@@ -40,26 +40,39 @@ try:
     df_base = limpiar_datos_ptar(df_raw)
 
     # --- BARRA LATERAL (LOGO Y FILTROS) ---
-    # Aquí cargamos el logo que subiste a la raíz del repositorio
+    # Ajusta el nombre según lo tengas en tu GitHub (ej: "logo-white-kenzo.png")
     try:
         st.sidebar.image("logo-white-kenzo.png", use_container_width=True)
     except:
-        st.sidebar.warning("Logo no encontrado. Verifica que el archivo sea 'logo_kenzo.png'")
+        st.sidebar.error("Error: No se encontró el archivo del logo en el repositorio.")
 
     st.sidebar.header("Filtros de Análisis")
     
+    # Filtro de Fecha
     if not df_base.empty and 'fecha' in df_base.columns:
         min_f, max_f = min(df_base['fecha']), max(df_base['fecha'])
         rango_fechas = st.sidebar.date_input("Rango de fechas:", [min_f, max_f])
         if len(rango_fechas) == 2:
             df_base = df_base[(df_base['fecha'] >= rango_fechas[0]) & (df_base['fecha'] <= rango_fechas[1])]
 
+    # Filtro de Proceso
     if not df_base.empty and 'proceso' in df_base.columns:
         lista_p = sorted(df_base['proceso'].unique().tolist())
         procesos_sel = st.sidebar.multiselect("Selecciona el Proceso:", lista_p, default=lista_p)
         df_filtrado = df_base[df_base['proceso'].isin(procesos_sel)]
     else:
         df_filtrado = df_base
+
+    # --- FILTRO POR QUÍMICOS ---
+    if not df_filtrado.empty and 'quimicos' in df_filtrado.columns:
+        lista_q = sorted(df_filtrado['quimicos'].dropna().unique().tolist())
+        if lista_q:
+            quimicos_sel = st.sidebar.multiselect(
+                "Selecciona el Químico:", 
+                options=lista_q, 
+                default=lista_q
+            )
+            df_filtrado = df_filtrado[df_filtrado['quimicos'].isin(quimicos_sel)]
 
     # --- CUERPO PRINCIPAL ---
     t1, t2, t3 = st.tabs(["📊 Dashboard Vertimientos", "🧪 Agua Tratada", "🛠️ Mantenimiento"])
@@ -127,8 +140,10 @@ try:
         else:
             st.warning("No hay datos para los filtros seleccionados.")
 
-    with t2: st.info("Módulo de Agua Tratada.")
-    with t3: st.info("Módulo de Mantenimiento.")
+    with t2:
+        st.info("Módulo de Agua Tratada en desarrollo.")
+    with t3:
+        st.info("Módulo de Mantenimiento en desarrollo.")
 
 except Exception as e:
-    st.error(f"Error en la aplicación: {e}")
+    st.error(f"Se detectó un error en la aplicación: {e}")
