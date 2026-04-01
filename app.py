@@ -2,81 +2,88 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 
-# 1. Configuración
+# 1. Configuración de la página
 st.set_page_config(page_title="Gestión Integral PTAR", layout="wide", page_icon="💧")
 
 st.markdown('<p style="font-size:32px; font-weight:bold; color:#1E88E5;">🏗️ Gestión Integral - Planta de Tratamiento</p>', unsafe_allow_html=True)
 
-# 2. Función de limpieza (Motor compartido)
-def limpiar_datos(df, tipo="vertimiento"):
+# 2. Función de limpieza
+def limpiar_datos(df):
+    if df is None or df.empty:
+        return pd.DataFrame()
     df.columns = df.columns.str.strip()
-    if tipo == "vertimiento":
-        mapeo = {
-            'Marca temporal': 'timestamp', 'Fecha del reporte': 'fecha', 
-            'Proceso a reportar': 'proceso', 'ph': 'ph', 'Temperatura': 'temp', 
-            'Solidos suspendidos': 'sst', 'Caudal del vertimiento': 'caudal'
-        }
-    else:
-        # Aquí puedes definir mapeos para las otras hojas cuando las crees
-        mapeo = {'Fecha': 'fecha', 'SST Salida': 'sst_salida', 'Equipo': 'equipo'}
     
+    # Mapeo según tus columnas actuales
+    mapeo = {
+        'Marca temporal': 'timestamp', 'Fecha del reporte': 'fecha', 
+        'Proceso a reportar': 'proceso', 'ph': 'ph', 'Temperatura': 'temp', 
+        'Solidos suspendidos': 'sst', 'Caudal del vertimiento': 'caudal'
+    }
     df = df.rename(columns=mapeo)
-    
-    # Conversión numérica
-    for col in df.columns:
-        if col in ['ph', 'temp', 'sst', 'caudal', 'sst_salida']:
+
+    # Conversión a números
+    cols_num = ['ph', 'temp', 'sst', 'caudal']
+    for col in cols_num:
+        if col in df.columns:
             df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', '.'), errors='coerce')
     
     if 'fecha' in df.columns:
         df['fecha'] = pd.to_datetime(df['fecha']).dt.date
     return df
 
-# 3. Conexión Principal
+# 3. Conexión y Carga de Datos
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
     
-    # --- CARGA DE DATOS POR PESTAÑA ---
-    # Nota: El parámetro 'worksheet' debe coincidir con el nombre de la pestaña en tu Excel
-    df_vertimiento = limpiar_datos(conn.read(worksheet="Vertimientos"), "vertimiento")
-    
-    # Intentamos leer las otras, si no existen aún, creamos DataFrames vacíos para que no falle
+    # IMPORTANTE: Aquí usamos los nombres exactos de tu imagen
     try:
-        df_tratada = limpiar_datos(conn.read(worksheet="Agua Tratada"), "tratada")
+        df_v = limpiar_datos(conn.read(worksheet="vertimiento"))
     except:
-        df_tratada = pd.DataFrame()
-        
+        df_v = pd.DataFrame()
+
     try:
-        df_mantenimiento = conn.read(worksheet="Mantenimiento")
+        df_t = limpiar_datos(conn.read(worksheet="tratada"))
     except:
-        df_mantenimiento = pd.DataFrame()
+        df_t = pd.DataFrame()
 
-    # --- DISEÑO DE PESTAÑAS EN STREAMLIT ---
-    tab1, tab2, tab3 = st.tabs(["📊 Vertimientos", "🧪 Agua Tratada", "🛠️ Mantenimiento"])
+    try:
+        df_m = conn.read(worksheet="mantenimiento")
+    except:
+        df_m = pd.DataFrame()
 
-    with tab1:
-        st.subheader("Control de Parámetros de Entrada")
-        # Aquí va toda la lógica de métricas y gráficas que ya teníamos
-        col1, col2, col3 = st.columns(3)
-        col1.metric("pH Promedio", f"{df_vertimiento['ph'].mean():.2f}")
-        col2.metric("SST Promedio", f"{df_vertimiento['sst'].mean():.2f}")
-        col3.metric("Total Reportes", len(df_vertimiento))
-        
-        st.line_chart(df_vertimiento.groupby('fecha')['ph'].mean())
+    # --- NAVEGACIÓN ---
+    t1, t2, t3 = st.tabs(["📊 Vertimientos", "🧪 Agua Tratada", "🛠️ Mantenimiento"])
 
-    with tab2:
-        st.subheader("Análisis de Salida y Eficiencia")
-        if not df_tratada.empty:
-            st.dataframe(df_tratada, use_container_width=True)
+    with t1:
+        if not df_v.empty:
+            # Métricas
+            c1, c2, c3 = st.columns(3)
+            c1.metric("pH Promedio", f"{df_v['ph'].mean():.2f}")
+            c2.metric("Temp Promedio", f"{df_v['temp'].mean():.1f} °C")
+            c3.metric("Total Reportes", len(df_v))
+            
+            # Gráfica
+            st.subheader("Tendencia de pH")
+            st.line_chart(df_v.groupby('fecha')['ph'].mean())
+            
+            st.subheader("Detalle de Registros")
+            st.dataframe(df_v, use_container_width=True)
         else:
-            st.info("Crea una pestaña llamada 'Agua Tratada' en tu Google Sheet para ver estos datos.")
+            st.warning("No se pudieron cargar datos de la pestaña 'vertimiento'.")
 
-    with tab3:
-        st.subheader("Bitácora de Equipos")
-        if not df_mantenimiento.empty:
-            st.dataframe(df_mantenimiento, use_container_width=True)
+    with t2:
+        if not df_t.empty:
+            st.subheader("Datos de Agua Tratada")
+            st.dataframe(df_t, use_container_width=True)
         else:
-            st.info("Crea una pestaña llamada 'Mantenimiento' en tu Google Sheet para el seguimiento de equipos.")
+            st.info("La pestaña 'tratada' está vacía o no tiene el formato correcto.")
+
+    with t3:
+        if not df_m.empty:
+            st.subheader("Historial de Mantenimiento")
+            st.dataframe(df_m, use_container_width=True)
+        else:
+            st.info("La pestaña 'mantenimiento' está vacía o no se detecta.")
 
 except Exception as e:
-    st.error(f"Error al conectar: {e}")
-    st.info("Asegúrate de que los nombres de las pestañas en el Excel coincidan con el código.")
+    st.error(f"Error de conexión: {e}")
