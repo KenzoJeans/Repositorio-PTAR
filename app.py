@@ -42,7 +42,7 @@ try:
     # --- BARRA LATERAL (LOGO Y FILTROS) ---
     # Usando el nombre que confirmamos en tus capturas
     try:
-        st.sidebar.image("logo_kenzo.png", use_container_width=True)
+        st.sidebar.image("logo-white-kenzo.png", use_container_width=True)
     except:
         st.sidebar.warning("Verifica el nombre del archivo del logo.")
 
