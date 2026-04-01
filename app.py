@@ -59,44 +59,26 @@ try:
             m3.metric("SST Promedio", f"{df_filtrado['sst'].mean():.2f}")
             m4.metric("Total Registros", len(df_filtrado))
 
-            # FILA 1 DE GRÁFICAS: TENDENCIA TEMPORAL
-            st.subheader("📈 Tendencia Histórica de pH")
-            fig_linea = px.line(df_filtrado.sort_values('fecha'), x='fecha', y='ph', 
-                              markers=True, color_discrete_sequence=['#1E88E5'],
-                              title="Evolución del pH en el tiempo")
-            fig_linea.add_hline(y=9.0, line_dash="dash", line_color="red", annotation_text="Límite Máx")
-            fig_linea.add_hline(y=6.0, line_dash="dash", line_color="red", annotation_text="Límite Mín")
-            st.plotly_chart(fig_linea, use_container_width=True)
-
-            # FILA 2 DE GRÁFICAS: COMPARATIVA POR PROCESO
-            col_g1, col_g2 = st.columns(2)
+            # --- SECCIÓN DE PH ---
+            st.subheader("📈 Análisis de pH")
             
-            with col_g1:
-                st.subheader("📊 pH Promedio por Proceso")
-                # Nueva gráfica pedida: pH vs Proceso
-                df_ph_proc = df_filtrado.groupby('proceso')['ph'].mean().reset_index()
-                fig_ph_proc = px.bar(df_ph_proc, x='proceso', y='ph', 
-                                   color='ph', color_continuous_scale='RdYlGn_r',
-                                   title="Comparativa de pH entre procesos")
-                st.plotly_chart(fig_ph_proc, use_container_width=True)
+            # 1. Evolución de pH en el tiempo (Línea de tiempo)
+            fig_tiempo = px.line(df_filtrado.sort_values('fecha'), x='fecha', y='ph', 
+                               markers=True, color_discrete_sequence=['#1E88E5'],
+                               title="Evolución del pH en el tiempo")
+            fig_tiempo.add_hline(y=9.0, line_dash="dash", line_color="red", annotation_text="Límite Máx")
+            fig_tiempo.add_hline(y=6.0, line_dash="dash", line_color="red", annotation_text="Límite Mín")
+            st.plotly_chart(fig_tiempo, use_container_width=True)
 
-            with col_g2:
-                st.subheader("📊 Sólidos (SST) por Proceso")
-                df_sst_proc = df_filtrado.groupby('proceso')['sst'].mean().reset_index()
-                fig_sst = px.bar(df_sst_proc, x='proceso', y='sst', 
-                                color='proceso', title="Promedio de Sólidos por Proceso")
-                st.plotly_chart(fig_sst, use_container_width=True)
+            # 2. Promedio de pH por Proceso (Nueva línea pedida debajo)
+            df_proc = df_filtrado.groupby('proceso')['ph'].mean().reset_index()
+            fig_proc = px.line(df_proc, x='proceso', y='ph', markers=True,
+                             title="Promedio de pH por cada Proceso",
+                             color_discrete_sequence=['#43A047']) # Color verde para diferenciar
+            fig_proc.update_traces(line_shape='linear')
+            st.plotly_chart(fig_proc, use_container_width=True)
 
-            st.subheader("📋 Detalle de Datos Filtrados")
-            st.dataframe(df_filtrado, use_container_width=True)
-        else:
-            st.warning("Selecciona procesos en la barra lateral.")
-
-    with t2:
-        st.info("Sección de Agua Tratada configurada.")
-
-    with t3:
-        st.info("Sección de Mantenimiento configurada.")
-
-except Exception as e:
-    st.error(f"Error de sistema: {e}")
+            # --- SECCIÓN DE SÓLIDOS ---
+            st.subheader("📊 Análisis de Sólidos (SST)")
+            df_sst_proc = df_filtrado.groupby('proceso')['sst'].mean().reset_index()
+            fig_sst = px.bar(df_sst_proc, x='proceso', y='sst',
