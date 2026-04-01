@@ -41,19 +41,22 @@ try:
     # --- BARRA LATERAL (FILTROS) ---
     st.sidebar.header("Filtros de Análisis")
     
-    if 'fecha' in df_base.columns:
+    if 'fecha' in df_base.columns and not df_base.empty:
         min_f, max_f = min(df_base['fecha']), max(df_base['fecha'])
         rango_fechas = st.sidebar.date_input("Rango de fechas:", [min_f, max_f])
         if len(rango_fechas) == 2:
             df_base = df_base[(df_base['fecha'] >= rango_fechas[0]) & (df_base['fecha'] <= rango_fechas[1])]
 
-    if 'proceso' in df_base.columns:
+    if 'proceso' in df_base.columns and not df_base.empty:
         lista_p = sorted(df_base['proceso'].unique().tolist())
         procesos_sel = st.sidebar.multiselect("Selecciona el Proceso:", lista_p, default=lista_p)
         df_filtrado = df_base[df_base['proceso'].isin(procesos_sel)]
     else:
         df_filtrado = df_base
 
-    if 'quimicos' in df_filtrado.columns:
+    if 'quimicos' in df_filtrado.columns and not df_filtrado.empty:
         filtro_q = st.sidebar.text_input("Buscar por producto químico:", "").strip().lower()
-        if
+        if filtro_q:
+            df_filtrado = df_filtrado[df_filtrado['quimicos'].astype(str).str.lower().str.contains(filtro_q)]
+
+    # --- CUERPO PRINCIPAL ---
