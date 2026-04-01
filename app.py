@@ -62,23 +62,11 @@ try:
             # --- SECCIÓN DE PH ---
             st.subheader("📈 Análisis de pH")
             
-            # 1. Evolución de pH en el tiempo (Línea de tiempo)
+            # 1. Evolución de pH en el tiempo
             fig_tiempo = px.line(df_filtrado.sort_values('fecha'), x='fecha', y='ph', 
-                               markers=True, color_discrete_sequence=['#1E88E5'],
-                               title="Evolución del pH en el tiempo")
+                               markers=True, title="Evolución del pH en el tiempo")
             fig_tiempo.add_hline(y=9.0, line_dash="dash", line_color="red", annotation_text="Límite Máx")
             fig_tiempo.add_hline(y=6.0, line_dash="dash", line_color="red", annotation_text="Límite Mín")
             st.plotly_chart(fig_tiempo, use_container_width=True)
 
-            # 2. Promedio de pH por Proceso (Nueva línea pedida debajo)
-            df_proc = df_filtrado.groupby('proceso')['ph'].mean().reset_index()
-            fig_proc = px.line(df_proc, x='proceso', y='ph', markers=True,
-                             title="Promedio de pH por cada Proceso",
-                             color_discrete_sequence=['#43A047']) # Color verde para diferenciar
-            fig_proc.update_traces(line_shape='linear')
-            st.plotly_chart(fig_proc, use_container_width=True)
-
-            # --- SECCIÓN DE SÓLIDOS ---
-            st.subheader("📊 Análisis de Sólidos (SST)")
-            df_sst_proc = df_filtrado.groupby('proceso')['sst'].mean().reset_index()
-            fig_sst = px.bar(df_sst_proc, x='proceso', y='sst',
+            # 2. Promedio de pH por Proceso (
