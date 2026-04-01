@@ -7,13 +7,13 @@ st.set_page_config(page_title="Gestión Integral PTAR", layout="wide", page_icon
 
 st.markdown('<p style="font-size:32px; font-weight:bold; color:#1E88E5;">🏗️ Gestión Integral - Planta de Tratamiento</p>', unsafe_allow_html=True)
 
-# 2. Función de limpieza
+# 2. Función de limpieza (Mejorada para forzar tipos de datos)
 def limpiar_datos(df):
     if df is None or df.empty:
         return pd.DataFrame()
+    
     df.columns = df.columns.str.strip()
     
-    # Mapeo según tus columnas actuales
     mapeo = {
         'Marca temporal': 'timestamp', 'Fecha del reporte': 'fecha', 
         'Proceso a reportar': 'proceso', 'ph': 'ph', 'Temperatura': 'temp', 
@@ -21,69 +21,70 @@ def limpiar_datos(df):
     }
     df = df.rename(columns=mapeo)
 
-    # Conversión a números
-    cols_num = ['ph', 'temp', 'sst', 'caudal']
-    for col in cols_num:
+    # Forzamos conversión numérica para evitar errores de gráficas
+    for col in ['ph', 'temp', 'sst', 'caudal']:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', '.'), errors='coerce')
     
     if 'fecha' in df.columns:
         df['fecha'] = pd.to_datetime(df['fecha']).dt.date
-    return df
+    
+    return df.dropna(subset=['ph']) # Solo filas con datos reales
 
-# 3. Conexión y Carga de Datos
+# 3. Conexión con TTL=0 (Para forzar datos frescos)
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
     
-    # IMPORTANTE: Aquí usamos los nombres exactos de tu imagen
+    # ttl=0 obliga a Streamlit a no usar memoria vieja
     try:
-        df_v = limpiar_datos(conn.read(worksheet="vertimiento"))
+        df_v = limpiar_datos(conn.read(worksheet="vertimiento", ttl=0))
     except:
         df_v = pd.DataFrame()
 
     try:
-        df_t = limpiar_datos(conn.read(worksheet="tratada"))
+        df_t = limpiar_datos(conn.read(worksheet="tratada", ttl=0))
     except:
         df_t = pd.DataFrame()
 
     try:
-        df_m = conn.read(worksheet="mantenimiento")
+        df_m = conn.read(worksheet="mantenimiento", ttl=0)
     except:
         df_m = pd.DataFrame()
 
-    # --- NAVEGACIÓN ---
+    # --- DISEÑO DE PESTAÑAS ---
     t1, t2, t3 = st.tabs(["📊 Vertimientos", "🧪 Agua Tratada", "🛠️ Mantenimiento"])
 
     with t1:
         if not df_v.empty:
-            # Métricas
-            c1, c2, c3 = st.columns(3)
-            c1.metric("pH Promedio", f"{df_v['ph'].mean():.2f}")
-            c2.metric("Temp Promedio", f"{df_v['temp'].mean():.1f} °C")
-            c3.metric("Total Reportes", len(df_v))
+            # Métricas superiores
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("pH Promedio", f"{df_v['ph'].mean():.2f}")
+            m2.metric("Temp Promedio", f"{df_v['temp'].mean():.1f} °C")
+            m3.metric("SST Promedio", f"{df_v['sst'].mean():.2f}")
+            m4.metric("Registros", len(df_v))
             
-            # Gráfica
+            # Gráfica de Tendencia
             st.subheader("Tendencia de pH")
             st.line_chart(df_v.groupby('fecha')['ph'].mean())
             
-            st.subheader("Detalle de Registros")
+            st.subheader("Datos en Crudo")
             st.dataframe(df_v, use_container_width=True)
         else:
-            st.warning("No se pudieron cargar datos de la pestaña 'vertimiento'.")
+            st.error("⚠️ No se encuentran datos en la pestaña 'vertimiento'. Revisa que la primera fila tenga los títulos de columna.")
 
     with t2:
         if not df_t.empty:
-            st.subheader("Datos de Agua Tratada")
+            st.subheader("Análisis de Agua Tratada")
             st.dataframe(df_t, use_container_width=True)
         else:
-            st.info("La pestaña 'tratada' está vacía o no tiene el formato correcto.")
+            st.info("Pestaña 'tratada' detectada pero sin registros todavía.")
 
     with t3:
         if not df_m.empty:
-            st.subheader("Historial de Mantenimiento")
+            st.subheader("Registro de Mantenimiento")
             st.dataframe(df_m, use_container_width=True)
         else:
-            st.info("La pestaña 'mantenimiento' está vacía o no se detecta.")
+            st.info("Pestaña 'mantenimiento' lista para recibir datos.")
 
 except Exception as e:
     st.error(f"Error de conexión: {e}")
