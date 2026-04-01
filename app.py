@@ -2,114 +2,81 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 
-# 1. Configuración de la página
-st.set_page_config(page_title="Dashboard PTAR Pro", layout="wide", page_icon="💧")
+# 1. Configuración
+st.set_page_config(page_title="Gestión Integral PTAR", layout="wide", page_icon="💧")
 
-st.markdown("""
-    <style>
-    .main-title { font-size:32px !important; font-weight: bold; color: #1E88E5; }
-    </style>
-    """, unsafe_allow_html=True)
+st.markdown('<p style="font-size:32px; font-weight:bold; color:#1E88E5;">🏗️ Gestión Integral - Planta de Tratamiento</p>', unsafe_allow_html=True)
 
-st.markdown('<p class="main-title">🌊 Control de Vertimientos - Planta de Tratamiento</p>', unsafe_allow_html=True)
-
-# 2. Motor de datos
-def preparar_datos(df):
+# 2. Función de limpieza (Motor compartido)
+def limpiar_datos(df, tipo="vertimiento"):
     df.columns = df.columns.str.strip()
-    mapeo = {
-        'Marca temporal': 'timestamp', 'Fecha del reporte': 'fecha', 
-        'Hora del reporte': 'hora', 'Proceso a reportar': 'proceso',
-        'ph': 'ph', 'Temperatura': 'temp', 'Solidos suspendidos': 'sst',
-        'Productos quimicos utilizados en el proceso': 'quimicos',
-        'Caudal del vertimiento': 'caudal'
-    }
+    if tipo == "vertimiento":
+        mapeo = {
+            'Marca temporal': 'timestamp', 'Fecha del reporte': 'fecha', 
+            'Proceso a reportar': 'proceso', 'ph': 'ph', 'Temperatura': 'temp', 
+            'Solidos suspendidos': 'sst', 'Caudal del vertimiento': 'caudal'
+        }
+    else:
+        # Aquí puedes definir mapeos para las otras hojas cuando las crees
+        mapeo = {'Fecha': 'fecha', 'SST Salida': 'sst_salida', 'Equipo': 'equipo'}
+    
     df = df.rename(columns=mapeo)
     
-    cols_numericas = ['ph', 'temp', 'sst', 'caudal']
-    for col in cols_numericas:
-        if col in df.columns:
+    # Conversión numérica
+    for col in df.columns:
+        if col in ['ph', 'temp', 'sst', 'caudal', 'sst_salida']:
             df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', '.'), errors='coerce')
     
     if 'fecha' in df.columns:
         df['fecha'] = pd.to_datetime(df['fecha']).dt.date
-    
-    return df.dropna(subset=['ph'])
+    return df
 
-# 3. Lógica Principal
+# 3. Conexión Principal
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
-    df_raw = conn.read()
-    df = preparar_datos(df_raw)
-
-    # --- SIDEBAR MEJORADA ---
-    st.sidebar.header("🔍 Control de Filtros")
     
-    # Filtro de Procesos
-    procesos = df["proceso"].unique().tolist()
-    proceso_sel = st.sidebar.multiselect("Procesos:", procesos, default=procesos)
+    # --- CARGA DE DATOS POR PESTAÑA ---
+    # Nota: El parámetro 'worksheet' debe coincidir con el nombre de la pestaña en tu Excel
+    df_vertimiento = limpiar_datos(conn.read(worksheet="Vertimientos"), "vertimiento")
     
-    # Filtro de Químicos (NUEVO)
-    busqueda_quimico = st.sidebar.text_input("Buscar por Insumo/Químico:", "")
-    
-    # Filtro de Fechas
-    f_min, f_max = df["fecha"].min(), df["fecha"].max()
-    rango_fecha = st.sidebar.date_input("Rango de fechas:", [f_min, f_max])
-
-    # Aplicar filtros
-    df_filtrado = df[df["proceso"].isin(proceso_sel)]
-    if busqueda_quimico:
-        df_filtrado = df_filtrado[df_filtrado['quimicos'].str.contains(busqueda_quimico, case=False, na=False)]
-    if len(rango_fecha) == 2:
-        df_filtrado = df_filtrado[(df_filtrado["fecha"] >= rango_fecha[0]) & (df_filtrado["fecha"] <= rango_fecha[1])]
-
-    # --- MÉTRICAS CON SEMÁFORO (NUEVO) ---
-    col1, col2, col3, col4 = st.columns(4)
-    
-    prom_ph = df_filtrado['ph'].mean()
-    prom_temp = df_filtrado['temp'].mean()
-    
-    with col1:
-        # Delta muestra si el pH es ideal (6-9)
-        estado_ph = "Normal" if 6 <= prom_ph <= 9 else "FUERA DE RANGO"
-        st.metric("Promedio pH", f"{prom_ph:.2f}", delta=estado_ph, delta_color="normal" if 6 <= prom_ph <= 9 else "inverse")
-    
-    with col2:
-        estado_t = "Óptima" if prom_temp <= 40 else "ALTA"
-        st.metric("Temp Promedio", f"{prom_temp:.1f} °C", delta=estado_t, delta_color="normal" if prom_temp <= 40 else "inverse")
+    # Intentamos leer las otras, si no existen aún, creamos DataFrames vacíos para que no falle
+    try:
+        df_tratada = limpiar_datos(conn.read(worksheet="Agua Tratada"), "tratada")
+    except:
+        df_tratada = pd.DataFrame()
         
-    with col3:
-        st.metric("SST Promedio", f"{df_filtrado['sst'].mean():.2f}")
-    with col4:
-        st.metric("Total Registros", len(df_filtrado))
+    try:
+        df_mantenimiento = conn.read(worksheet="Mantenimiento")
+    except:
+        df_mantenimiento = pd.DataFrame()
 
-    # --- CONTADOR POR PROCESO ---
-    st.write("---")
-    st.markdown("### 📊 Registros por Proceso")
-    conteo = df_filtrado['proceso'].value_counts()
-    cols_c = st.columns(len(conteo))
-    for i, (proc, cant) in enumerate(conteo.items()):
-        cols_c[i].info(f"**{proc}**\n\n{cant}")
+    # --- DISEÑO DE PESTAÑAS EN STREAMLIT ---
+    tab1, tab2, tab3 = st.tabs(["📊 Vertimientos", "🧪 Agua Tratada", "🛠️ Mantenimiento"])
 
-    # --- GRÁFICAS Y TABLA ---
-    st.write("---")
-    c_izq, c_der = st.columns(2)
-    
-    with c_izq:
-        st.subheader("📈 Tendencia pH")
-        st.line_chart(df_filtrado.groupby('fecha')['ph'].mean())
+    with tab1:
+        st.subheader("Control de Parámetros de Entrada")
+        # Aquí va toda la lógica de métricas y gráficas que ya teníamos
+        col1, col2, col3 = st.columns(3)
+        col1.metric("pH Promedio", f"{df_vertimiento['ph'].mean():.2f}")
+        col2.metric("SST Promedio", f"{df_vertimiento['sst'].mean():.2f}")
+        col3.metric("Total Reportes", len(df_vertimiento))
         
-        st.subheader("🧪 Sólidos por Proceso")
-        st.bar_chart(df_filtrado.groupby('proceso')['sst'].mean())
+        st.line_chart(df_vertimiento.groupby('fecha')['ph'].mean())
 
-    with c_der:
-        st.subheader("🌡️ Temp vs pH")
-        st.scatter_chart(data=df_filtrado, x='temp', y='ph', color='proceso')
-        
-        # BOTÓN DE DESCARGA (NUEVO)
-        st.subheader("📋 Datos Filtrados")
-        csv = df_filtrado.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Descargar Reporte en CSV", data=csv, file_name="reporte_ptar.csv", mime="text/csv")
-        st.dataframe(df_filtrado[['fecha', 'proceso', 'ph', 'temp', 'sst', 'quimicos']], use_container_width=True)
+    with tab2:
+        st.subheader("Análisis de Salida y Eficiencia")
+        if not df_tratada.empty:
+            st.dataframe(df_tratada, use_container_width=True)
+        else:
+            st.info("Crea una pestaña llamada 'Agua Tratada' en tu Google Sheet para ver estos datos.")
+
+    with tab3:
+        st.subheader("Bitácora de Equipos")
+        if not df_mantenimiento.empty:
+            st.dataframe(df_mantenimiento, use_container_width=True)
+        else:
+            st.info("Crea una pestaña llamada 'Mantenimiento' en tu Google Sheet para el seguimiento de equipos.")
 
 except Exception as e:
-    st.error(f"Error: {e}")
+    st.error(f"Error al conectar: {e}")
+    st.info("Asegúrate de que los nombres de las pestañas en el Excel coincidan con el código.")
