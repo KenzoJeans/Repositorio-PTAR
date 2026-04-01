@@ -18,7 +18,8 @@ def limpiar_datos_ptar(df):
         'temp': 'temp', 'Temperatura': 'temp',
         'sst': 'sst', 'Solidos suspendidos': 'sst',
         'Fecha del reporte': 'fecha', 'fecha': 'fecha',
-        'Proceso a reportar': 'proceso'
+        'Proceso a reportar': 'proceso',
+        'Productos quimicos utilizados en el proceso': 'quimicos'
     }
     df = df.rename(columns={k: v for k, v in mapeo.items() if k in df.columns})
 
@@ -39,12 +40,30 @@ try:
 
     # --- BARRA LATERAL (FILTROS) ---
     st.sidebar.header("Filtros de Análisis")
+    
+    # A. Filtro de Fecha (Nuevo)
+    if 'fecha' in df.columns:
+        min_date = min(df['fecha'])
+        max_date = max(df['fecha'])
+        fecha_sel = st.sidebar.date_input("Rango de fechas:", [min_date, max_date])
+        
+        if len(fecha_sel) == 2:
+            mask_fecha = (df['fecha'] >= fecha_sel[0]) & (df['fecha'] <= fecha_sel[1])
+            df = df[mask_fecha]
+
+    # B. Filtro de Proceso
     if 'proceso' in df.columns:
         lista_procesos = sorted(df['proceso'].unique().tolist())
         procesos_sel = st.sidebar.multiselect("Selecciona el Proceso:", lista_procesos, default=lista_procesos)
         df_filtrado = df[df['proceso'].isin(procesos_sel)]
     else:
         df_filtrado = df
+
+    # C. Filtro por palabras en Químicos (Nuevo)
+    if 'quimicos' in df.columns:
+        busqueda_q = st.sidebar.text_input("Buscar por producto químico:", "").strip().lower()
+        if busqueda_q:
+            df_filtrado = df_filtrado[df_filtrado['quimicos'].astype(str).str.lower().str.contains(busqueda_q)]
 
     # --- CUERPO PRINCIPAL ---
     t1, t2, t3 = st.tabs(["📊 Dashboard Vertimientos", "🧪 Agua Tratada", "🛠️ Mantenimiento"])
@@ -61,14 +80,12 @@ try:
             # --- SECCIÓN DE PH ---
             st.subheader("📈 Análisis de pH")
             
-            # 1. Evolución de pH en el tiempo
             fig_tiempo = px.line(df_filtrado.sort_values('fecha'), x='fecha', y='ph', 
                                markers=True, title="Evolución del pH en el tiempo")
             fig_tiempo.add_hline(y=9.0, line_dash="dash", line_color="red", annotation_text="Límite Máx")
             fig_tiempo.add_hline(y=6.0, line_dash="dash", line_color="red", annotation_text="Límite Mín")
             st.plotly_chart(fig_tiempo, use_container_width=True)
 
-            # 2. Promedio de pH por Proceso (Gráfica de líneas)
             df_proc = df_filtrado.groupby('proceso')['ph'].mean().reset_index()
             fig_proc = px.line(df_proc, x='proceso', y='ph', markers=True,
                              title="Promedio de pH por Proceso",
@@ -78,20 +95,4 @@ try:
             # --- SECCIÓN DE SÓLIDOS ---
             st.subheader("📊 Análisis de Sólidos (SST)")
             df_sst_proc = df_filtrado.groupby('proceso')['sst'].mean().reset_index()
-            fig_sst = px.bar(df_sst_proc, x='proceso', y='sst', 
-                            color='proceso', title="Promedio de Sólidos (SST) por Proceso")
-            st.plotly_chart(fig_sst, use_container_width=True)
-
-            st.subheader("📋 Detalle de Datos")
-            st.dataframe(df_filtrado, use_container_width=True)
-        else:
-            st.warning("Selecciona al menos un proceso en la barra lateral.")
-
-    with t2:
-        st.info("Módulo de Agua Tratada configurado.")
-
-    with t3:
-        st.info("Módulo de Mantenimiento configurado.")
-
-except Exception as e:
-    st.error(f"Error en la ejecución: {e}")
+            fig_sst =
