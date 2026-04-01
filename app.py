@@ -1,82 +1,77 @@
 import streamlit as st
+from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-import plotly.express as px
-import requests
-import io
 
-st.set_page_config(page_title="Control PTAR", layout="wide")
-st.title("💧 Control de Vertimientos (Tiempo Real)")
+# Configuración de la página
+st.set_page_config(page_title="Dashboard Planta de Tratamiento", layout="wide")
 
-# --- INSTRUCCIÓN: Copia el link de tu navegador y pégalo aquí abajo ---
-# Asegúrate de que incluya desde 'https://' hasta el final
-SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTYSPFoH-9tDls-EOx6h_4U0GWVcV8ip704Hx5dYkY-l1X4gwKvEHqujuxA_UfvQrB8TKuz4Sy5qQe3/pubhtml"
+st.title("📊 Monitor de Parámetros de Vertimiento")
+st.markdown("---")
 
-@st.cache_data(ttl=60)
-def cargar_datos_seguro(url):
-    try:
-        # 1. Limpieza y transformación del link
-        base_url = url.split('/edit')[0]
-        # Extraemos el GID (ID de la pestaña) si existe, si no usamos 0
-        gid = "0"
-        if "gid=" in url:
-            gid = url.split("gid=")[1].split("&")[0]
+# 1. Conexión a los datos
+try:
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    # Cambia 'spreadsheet' por el nombre de tu hoja si es distinto
+    df_raw = conn.read()
+    
+    # 2. Función de limpieza y normalización
+    def preparar_datos(df):
+        # Limpieza de espacios invisibles en los nombres de las columnas
+        df.columns = df.columns.str.strip()
         
-        csv_url = f"{base_url}/export?format=csv&gid={gid}"
+        # Diccionario de mapeo basado en tu captura
+        mapeo = {
+            'Marca temporal': 'timestamp',
+            'Fecha del reporte': 'fecha',
+            'Hora del reporte': 'hora',
+            'Proceso a reportar': 'proceso',
+            'ph': 'ph',
+            'Temperatura': 'temp',
+            'Solidos suspendidos': 'sst',
+            'Productos quimicos utilizados en el proceso': 'quimicos',
+            'Caracteristicas visuales del vertimiento': 'visuales',
+            'Caudal del vertimiento': 'caudal',
+            'Suba aqui evidencia de la muestra tomada y e': 'evidencia'
+        }
         
-        # 2. Intento de descarga
-        response = requests.get(csv_url, timeout=10)
+        # Renombramos y nos quedamos solo con las que nos sirven
+        df = df.rename(columns=mapeo)
         
-        # Si Google devuelve una página de login (HTML), es un tema de link o permiso
-        if "<!DOCTYPE html>" in response.text:
-            st.error("🚨 Google Sheets devolvió una página web en lugar de datos.")
-            st.info("Revisa que el link en el código sea el correcto y que el Sheet esté como 'Cualquier persona con el enlace'.")
-            st.stop()
-            
-        # 3. Procesamiento de datos
-        df = pd.read_csv(io.StringIO(response.text))
-        
-        # Limpieza de columnas
-        df.columns = [c.strip() for c in df.columns]
-        
-        # Conversión de números (Puntos y Comas)
-        for col in ['ph', 'Temperatura', 'Solidos suspendidos']:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', '.'), errors='coerce')
-        
-        if 'Fecha' in df.columns:
-            df['Fecha'] = pd.to_datetime(df['Fecha'], dayfirst=True, errors='coerce')
+        # Convertir fecha a formato datetime para que Streamlit la entienda bien
+        if 'fecha' in df.columns:
+            df['fecha'] = pd.to_datetime(df['fecha']).dt.date
             
         return df
 
-    except Exception as e:
-        st.error(f"No se pudo conectar con el Sheet: {e}")
-        st.stop()
+    df = preparar_datos(df_raw)
 
-# --- EJECUCIÓN ---
-if SHEET_URL == "TU_LINK_DE_GOOGLE_SHEETS_AQUÍ":
-    st.warning("⚠️ Por favor, pega tu link de Google Sheets en la línea 12 del código en GitHub.")
-else:
-    df = cargar_datos_seguro(SHEET_URL)
-    
-    if df is not None:
-        st.success("✅ Datos sincronizados correctamente")
-        
-        # Métricas rápidas
-        c1, c2, c3 = st.columns(3)
-        if 'ph' in df.columns:
-            c1.metric("pH Promedio", f"{df['ph'].mean():.2f}")
-        if 'Temperatura' in df.columns:
-            c2.metric("Temp. Promedio", f"{df['Temperatura'].mean():.1f} °C")
-        if 'Solidos suspendidos' in df.columns:
-            c3.metric("Sólidos Promedio", f"{df['Solidos suspendidos'].mean():.1f}")
+    # 3. Interfaz del Dashboard
+    st.sidebar.header("Filtros")
+    proceso_sel = st.sidebar.multiselect(
+        "Selecciona el Proceso:",
+        options=df["proceso"].unique(),
+        default=df["proceso"].unique()
+    )
 
-        # Gráfico dinámico
-        st.markdown("### Tendencia de Parámetros")
-        opcion = st.selectbox("Elegir parámetro:", ['ph', 'Temperatura', 'Solidos suspendidos'])
-        
-        fig = px.line(df, x='Fecha', y=opcion, color='Proceso' if 'Proceso' in df.columns else None, 
-                     markers=True, template="plotly_white")
-        st.plotly_chart(fig, use_container_width=True)
-        
-        with st.expander("Ver tabla completa"):
-            st.dataframe(df)
+    df_filtrado = df[df["proceso"].isin(proceso_sel)]
+
+    # 4. Métricas Rápidas
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Promedio pH", round(df_filtrado["ph"].mean(), 2))
+    with col2:
+        st.metric("Promedio Temp (°C)", round(df_filtrado["temp"].mean(), 2))
+    with col3:
+        st.metric("Total Registros", len(df_filtrado))
+
+    # 5. Visualización de la Tabla Limpia
+    st.subheader("Datos Recientes")
+    st.dataframe(df_filtrado, use_container_width=True)
+
+    # 6. Gráfico simple de tendencia
+    st.subheader("Tendencia de pH")
+    st.line_chart(df_filtrado.set_index('fecha')['ph'])
+
+except Exception as e:
+    st.error(f"Error al conectar o procesar los datos: {e}")
+    st.info("Revisa que el nombre de las columnas en el Excel coincida exactamente con el código.")
