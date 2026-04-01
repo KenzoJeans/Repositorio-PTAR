@@ -36,63 +36,71 @@ def limpiar_datos_ptar(df):
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
     df_raw = conn.read(ttl=0)
-    df = limpiar_datos_ptar(df_raw)
+    df_base = limpiar_datos_ptar(df_raw)
 
     # --- BARRA LATERAL (FILTROS) ---
     st.sidebar.header("Filtros de Análisis")
     
-    # A. Filtro de Fecha (Nuevo)
-    if 'fecha' in df.columns:
-        min_date = min(df['fecha'])
-        max_date = max(df['fecha'])
-        fecha_sel = st.sidebar.date_input("Rango de fechas:", [min_date, max_date])
+    # Nuevo: Filtro de Rango de Fechas
+    if 'fecha' in df_base.columns:
+        min_f = min(df_base['fecha'])
+        max_f = max(df_base['fecha'])
+        rango_fechas = st.sidebar.date_input("Rango de fechas:", [min_f, max_f])
         
-        if len(fecha_sel) == 2:
-            mask_fecha = (df['fecha'] >= fecha_sel[0]) & (df['fecha'] <= fecha_sel[1])
-            df = df[mask_fecha]
+        if len(rango_fechas) == 2:
+            df_base = df_base[(df_base['fecha'] >= rango_fechas[0]) & (df_base['fecha'] <= rango_fechas[1])]
 
-    # B. Filtro de Proceso
-    if 'proceso' in df.columns:
-        lista_procesos = sorted(df['proceso'].unique().tolist())
+    # Filtro de Proceso (Existente)
+    if 'proceso' in df_base.columns:
+        lista_procesos = sorted(df_base['proceso'].unique().tolist())
         procesos_sel = st.sidebar.multiselect("Selecciona el Proceso:", lista_procesos, default=lista_procesos)
-        df_filtrado = df[df['proceso'].isin(procesos_sel)]
+        df_filtrado = df_base[df_base['proceso'].isin(procesos_sel)]
     else:
-        df_filtrado = df
+        df_filtrado = df_base
 
-    # C. Filtro por palabras en Químicos (Nuevo)
-    if 'quimicos' in df.columns:
-        busqueda_q = st.sidebar.text_input("Buscar por producto químico:", "").strip().lower()
-        if busqueda_q:
-            df_filtrado = df_filtrado[df_filtrado['quimicos'].astype(str).str.lower().str.contains(busqueda_q)]
+    # Nuevo: Filtro por palabras clave en Químicos
+    if 'quimicos' in df_filtrado.columns:
+        filtro_q = st.sidebar.text_input("Buscar por producto químico:", "").strip().lower()
+        if filtro_q:
+            df_filtrado = df_filtrado[df_filtrado['quimicos'].astype(str).str.lower().str.contains(filtro_q)]
 
     # --- CUERPO PRINCIPAL ---
     t1, t2, t3 = st.tabs(["📊 Dashboard Vertimientos", "🧪 Agua Tratada", "🛠️ Mantenimiento"])
 
     with t1:
         if not df_filtrado.empty:
-            # MÉTRICAS SUPERIORES
+            # Métricas
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("Promedio pH", f"{df_filtrado['ph'].mean():.2f}")
             m2.metric("Temp Promedio", f"{df_filtrado['temp'].mean():.1f} °C")
             m3.metric("SST Promedio", f"{df_filtrado['sst'].mean():.2f}")
             m4.metric("Total Registros", len(df_filtrado))
 
-            # --- SECCIÓN DE PH ---
+            # Gráfica 1: Evolución Temporal de pH
             st.subheader("📈 Análisis de pH")
-            
-            fig_tiempo = px.line(df_filtrado.sort_values('fecha'), x='fecha', y='ph', 
-                               markers=True, title="Evolución del pH en el tiempo")
-            fig_tiempo.add_hline(y=9.0, line_dash="dash", line_color="red", annotation_text="Límite Máx")
-            fig_tiempo.add_hline(y=6.0, line_dash="dash", line_color="red", annotation_text="Límite Mín")
-            st.plotly_chart(fig_tiempo, use_container_width=True)
+            fig_t = px.line(df_filtrado.sort_values('fecha'), x='fecha', y='ph', markers=True, title="Evolución del pH")
+            fig_t.add_hline(y=9.0, line_dash="dash", line_color="red")
+            fig_t.add_hline(y=6.0, line_dash="dash", line_color="red")
+            st.plotly_chart(fig_t, use_container_width=True)
 
-            df_proc = df_filtrado.groupby('proceso')['ph'].mean().reset_index()
-            fig_proc = px.line(df_proc, x='proceso', y='ph', markers=True,
-                             title="Promedio de pH por Proceso",
-                             color_discrete_sequence=['#43A047'])
-            st.plotly_chart(fig_proc, use_container_width=True)
+            # Gráfica 2: Promedio de pH por Proceso (Línea)
+            df_p = df_filtrado.groupby('proceso')['ph'].mean().reset_index()
+            fig_p = px.line(df_p, x='proceso', y='ph', markers=True, title="Estabilidad de pH por Proceso", color_discrete_sequence=['#43A047'])
+            st.plotly_chart(fig_p, use_container_width=True)
 
-            # --- SECCIÓN DE SÓLIDOS ---
+            # Gráfica 3: Sólidos por Proceso
             st.subheader("📊 Análisis de Sólidos (SST)")
-            df_sst_proc = df_filtrado.groupby('proceso')['sst'].mean().reset_index()
-            fig_sst =
+            df_s = df_filtrado.groupby('proceso')['sst'].mean().reset_index()
+            fig_s = px.bar(df_s, x='proceso', y='sst', color='proceso', title="Promedio SST por Etapa")
+            st.plotly_chart(fig_s, use_container_width=True)
+
+            st.subheader("📋 Detalle de Datos")
+            st.dataframe(df_filtrado, use_container_width=True)
+        else:
+            st.warning("No hay registros que coincidan con los filtros aplicados.")
+
+    with t2: st.info("Módulo de Agua Tratada.")
+    with t3: st.info("Módulo de Mantenimiento.")
+
+except Exception as e:
+    st.error(f"Error: {e}")
