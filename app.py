@@ -44,7 +44,7 @@ try:
     conn = st.connection("gsheets", type=GSheetsConnection)
     
     # Carga de datos por pestaña específica
-    df_vert_raw = conn.read(worksheet="vertimiento", ttl=0)
+    df_vert_raw = conn.read(worksheet="mantenimiento", ttl=0)
     df_base = limpiar_datos_ptar(df_vert_raw)
 
     # --- BARRA LATERAL (LOGO Y FILTROS) ---
