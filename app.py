@@ -58,7 +58,7 @@ try:
         
         try:
             # Leemos la nueva pestaña de respuestas del formulario
-            df_maint_raw = conn.read(worksheet="Form_Responses2", ttl=0)
+            df_maint_raw = conn.read(worksheet="Mantenimiento", ttl=0)
             
             # Nos quedamos solo con el último reporte de cada equipo para mostrar la salud actual
             df_maint_raw = df_maint_raw.sort_values(by='Marca temporal', ascending=False)
