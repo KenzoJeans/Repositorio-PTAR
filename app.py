@@ -31,7 +31,6 @@ def limpiar_datos_ptar(df):
     if 'fecha' in df.columns:
         df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce').dt.date
     
-    # Solo filtramos por pH para la pestaña de vertimientos
     return df.dropna(subset=['ph']) if 'ph' in df.columns else df
 
 # 3. Conexión y Lógica Principal
@@ -82,7 +81,7 @@ try:
     with t3:
         st.subheader("🛠️ Estado de Maquinaria")
         try:
-            # Leer pestaña 'mantenimiento' (según tu captura)
+            # Leer pestaña 'mantenimiento'
             df_m = conn.read(worksheet="mantenimiento", ttl=0)
             df_m.columns = df_m.columns.str.strip().str.upper()
             
@@ -97,11 +96,27 @@ try:
                 cols = st.columns(len(df_actual))
                 for i, (_, row) in enumerate(df_actual.iterrows()):
                     with cols[i]:
-                        # Limpieza de valor de salud
                         salud_raw = str(row.get('SALUD', '0')).replace('%', '')
                         salud = pd.to_numeric(salud_raw, errors='coerce') or 0
                         color = "green" if salud > 70 else "orange" if salud > 40 else "red"
                         
-                        # Bloque HTML corregido (con triple comilla cerrada)
+                        # Bloque corregido
                         st.markdown(f"""
-                        <div style="border: 1px solid #44
+                        <div style="border: 1px solid #444; padding: 15px; border-radius: 10px; background-color: #1e1e1e; text-align: center; min-height: 140px;">
+                            <p style="margin: 0; font-weight: bold; color: white; font-size: 14px;">{row['EQUIPO']}</p>
+                            <h2 style="color: {color}; margin: 10px 0;">{int(salud)}%</h2>
+                            <p style="font-size: 10px; color: #aaa;">Prox: {row.get('FECHA PROX MANTENIMIENTO', 'N/A')}</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        st.progress(min(max(salud/100, 0.0), 1.0))
+
+                st.divider()
+                st.subheader("📋 Historial de Intervenciones")
+                st.dataframe(df_m, use_container_width=True)
+            else:
+                st.warning("No hay registros en la pestaña 'mantenimiento'.")
+        except Exception as e:
+            st.error(f"Error en Mantenimiento: {e}")
+
+except Exception as e:
+    st.error(f"Error General: {e}")
