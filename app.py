@@ -37,7 +37,8 @@ def limpiar_datos_ptar(df):
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
     
-    # Carga de datos principales (Vertimientos)
+    # --- CAMBIO CRÍTICO AQUÍ ---
+    # Especificamos la pestaña desde el primer momento para evitar el Error 400
     df_raw = conn.read(worksheet="vertimiento", ttl=0) 
     df_base = limpiar_datos_ptar(df_raw)
 
@@ -49,14 +50,12 @@ try:
 
     st.sidebar.header("Filtros de Análisis")
     
-    # Filtro de Fecha
     if not df_base.empty and 'fecha' in df_base.columns:
         min_f, max_f = min(df_base['fecha']), max(df_base['fecha'])
         rango_fechas = st.sidebar.date_input("Rango de fechas:", [min_f, max_f])
         if len(rango_fechas) == 2:
             df_base = df_base[(df_base['fecha'] >= rango_fechas[0]) & (df_base['fecha'] <= rango_fechas[1])]
 
-    # Filtro de Proceso
     if not df_base.empty and 'proceso' in df_base.columns:
         lista_p = sorted(df_base['proceso'].unique().tolist())
         procesos_sel = st.sidebar.multiselect("Selecciona el Proceso:", lista_p, default=lista_p)
@@ -64,7 +63,6 @@ try:
     else:
         df_filtrado = df_base
 
-    # --- FILTRO POR QUÍMICOS ---
     if not df_filtrado.empty and 'quimicos' in df_filtrado.columns:
         busqueda_q = st.sidebar.text_input("🔍 Buscar Químico (escribe el nombre):", "")
         if busqueda_q:
@@ -76,7 +74,6 @@ try:
     with t1:
         if not df_filtrado.empty:
             m1, m2, m3, m4 = st.columns(4)
-            
             avg_ph = df_filtrado['ph'].mean()
             avg_temp = df_filtrado['temp'].mean()
             avg_sst = df_filtrado['sst'].mean()
@@ -135,57 +132,45 @@ try:
     with t3:
         st.subheader("🛠️ Bitácora de Mantenimiento de Equipos")
         try:
-            # Carga específica de la pestaña de mantenimiento
+            # Lectura específica de la pestaña de mantenimiento
             df_mantenimiento = conn.read(worksheet="mantenimiento", ttl=0)
             df_mantenimiento.columns = df_mantenimiento.columns.str.strip().str.upper()
 
             if not df_mantenimiento.empty:
-                # 1. KPIs de Salud de Maquinaria (Último reporte por equipo)
-                # Asumiendo que la columna 'MARCA TEMPORAL' o 'FECHA' indica la última entrada
                 col_fecha_m = 'MARCA TEMPORAL' if 'MARCA TEMPORAL' in df_mantenimiento.columns else df_mantenimiento.columns[0]
                 df_mantenimiento[col_fecha_m] = pd.to_datetime(df_mantenimiento[col_fecha_m])
-                
-                # Obtener el estado más reciente de cada equipo
                 df_estado_actual = df_mantenimiento.sort_values(col_fecha_m).drop_duplicates('EQUIPO', keep='last')
 
-                # Renderizado de Tarjetas Visuales
                 st.write("### ❤️ Estado de Salud de Equipos")
                 columnas_equipo = st.columns(len(df_estado_actual))
                 
                 for idx, (_, row) in enumerate(df_estado_actual.iterrows()):
                     with columnas_equipo[idx]:
-                        # Limpiar valor de salud (eliminar % si existe)
-                        salud_val = str(row['SALUD']).replace('%', '')
+                        salud_val = str(row.get('SALUD', '0')).replace('%', '')
                         salud_num = pd.to_numeric(salud_val, errors='coerce') or 0
-                        
                         color_salud = "green" if salud_num >= 80 else "orange" if salud_num >= 50 else "red"
                         
                         st.markdown(f"""
-                            <div style="border: 1px solid #ddd; padding: 10px; border-radius: 10px; text-align: center; background-color: #f9f9f9;">
-                                <p style="margin: 0; font-weight: bold; color: #333;">{row['EQUIPO']}</p>
-                                <h2 style="margin: 0; color: {color_salud};">{int(salud_num)}%</h2>
-                                <p style="margin: 0; font-size: 12px; color: #666;">Estado: {row['ESTADO']}</p>
+                            <div style="border: 1px solid #ddd; padding: 10px; border-radius: 10px; text-align: center; background-color: #1e1e1e; min-height: 120px;">
+                                <p style="margin: 0; font-weight: bold; color: white; font-size: 14px;">{row['EQUIPO']}</p>
+                                <h2 style="margin: 5px 0; color: {color_salud};">{int(salud_num)}%</h2>
+                                <p style="margin: 0; font-size: 11px; color: #aaa;">{row.get('ESTADO', 'N/A')}</p>
                             </div>
                         """, unsafe_allow_html=True)
                         st.progress(min(max(salud_num/100, 0.0), 1.0))
 
                 st.divider()
-
-                # 2. Histórico y Filtro de Búsqueda
-                st.write("### 📋 Historial Completo de Intervenciones")
-                busqueda_m = st.text_input("🔍 Buscar por equipo u operario:")
-                
+                st.write("### 📋 Historial de Intervenciones")
+                busqueda_m = st.text_input("🔍 Buscar por equipo u operario (Mantenimiento):")
                 if busqueda_m:
                     df_m_mostrar = df_mantenimiento[df_mantenimiento.astype(str).apply(lambda x: x.str.contains(busqueda_m, case=False)).any(axis=1)]
                 else:
                     df_m_mostrar = df_mantenimiento
-
                 st.dataframe(df_m_mostrar.sort_values(col_fecha_m, ascending=False), use_container_width=True)
             else:
                 st.warning("No hay registros en la pestaña de 'mantenimiento'.")
-        
         except Exception as e_m:
-            st.error(f"Error al cargar el módulo de mantenimiento: {e_m}")
+            st.error(f"Error en Módulo Mantenimiento: {e_m}")
 
 except Exception as e:
-    st.error(f"Se detectó un error en la aplicación: {e}")
+    st.error(f"Se detectó un error general: {e}")
