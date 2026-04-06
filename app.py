@@ -58,7 +58,7 @@ try:
         
         try:
             # Leemos la nueva pestaña de respuestas del formulario
-            df_maint_raw = conn.read(worksheet="Mantenimiento", ttl=0)
+            df_maint_raw = conn.read(worksheet="mantenimiento", ttl=0)
             
             # Nos quedamos solo con el último reporte de cada equipo para mostrar la salud actual
             df_maint_raw = df_maint_raw.sort_values(by='Marca temporal', ascending=False)
@@ -86,11 +86,11 @@ try:
                 # Mostramos las columnas relevantes del formulario
                 st.dataframe(df_maint_raw[['Marca temporal', 'EQUIPO', 'ESTADO', 'QUE SE REALIZO', 'Operario']], use_container_width=True)
             else:
-                st.info("Aún no hay reportes en 'Form_Responses2'. Llena el formulario para ver los datos aquí.")
+                st.info("Aún no hay reportes en 'mantenimiento'. Llena el formulario para ver los datos aquí.")
         
         except Exception as e:
             st.error(f"Error al conectar con Form_Responses2: {e}")
-            st.info("Asegúrate de que el nombre de la hoja sea exactamente 'Form_Responses2'")
+            st.info("Asegúrate de que el nombre de la hoja sea exactamente 'mantenimiento'")
 
 except Exception as e:
     st.error(f"Error general: {e}")
