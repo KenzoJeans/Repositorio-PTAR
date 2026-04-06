@@ -40,10 +40,11 @@ try:
     df_base = limpiar_datos_ptar(df_raw)
 
     # --- BARRA LATERAL (LOGO Y FILTROS) ---
+    # Usando el nombre que confirmamos en tus capturas
     try:
-        st.sidebar.image("logo-white-kenzo.png", use_container_width=True)
+        st.sidebar.image("logo_kenzo.png", use_container_width=True)
     except:
-        st.sidebar.markdown("### 👖 KENZO JEANS PTAR")
+        st.sidebar.warning("Verifica el nombre del archivo del logo.")
 
     st.sidebar.header("Filtros de Análisis")
     
@@ -54,7 +55,7 @@ try:
         if len(rango_fechas) == 2:
             df_base = df_base[(df_base['fecha'] >= rango_fechas[0]) & (df_base['fecha'] <= rango_fechas[1])]
 
-    # Filtro de Proceso
+    # Filtro de Proceso (Multiselect)
     if not df_base.empty and 'proceso' in df_base.columns:
         lista_p = sorted(df_base['proceso'].unique().tolist())
         procesos_sel = st.sidebar.multiselect("Selecciona el Proceso:", lista_p, default=lista_p)
@@ -62,10 +63,12 @@ try:
     else:
         df_filtrado = df_base
 
-    # --- FILTRO DE BÚSQUEDA POR TEXTO (QUÍMICOS) ---
+    # --- FILTRO POR BÚSQUEDA DE TEXTO (QUÍMICOS) ---
     if not df_filtrado.empty and 'quimicos' in df_filtrado.columns:
-        busqueda_q = st.sidebar.text_input("🔍 Buscar Químico:", "")
+        busqueda_q = st.sidebar.text_input("🔍 Buscar Químico (escribe aquí):", "")
+        
         if busqueda_q:
+            # Filtra filas que contengan el texto escrito, ignorando mayúsculas/minúsculas
             df_filtrado = df_filtrado[df_filtrado['quimicos'].astype(str).str.contains(busqueda_q, case=False, na=False)]
 
     # --- CUERPO PRINCIPAL ---
@@ -73,47 +76,30 @@ try:
 
     with t1:
         if not df_filtrado.empty:
-            # MÉTRICAS SUPERIORES
+            # Métricas
             m1, m2, m3, m4 = st.columns(4)
             avg_ph = df_filtrado['ph'].mean()
             avg_temp = df_filtrado['temp'].mean()
             avg_sst = df_filtrado['sst'].mean()
 
-            m1.metric("Promedio pH", f"{avg_ph:.2f}", delta="EN NORMA" if 6<=avg_ph<=9 else "ALERTA", delta_color="normal" if 6<=avg_ph<=9 else "inverse")
+            m1.metric("Promedio pH", f"{avg_ph:.2f}", delta_color="normal" if 6<=avg_ph<=9 else "inverse")
             m2.metric("Temp Promedio", f"{avg_temp:.1f} °C")
-            m3.metric("SST Promedio", f"{avg_sst:.2f} mg/L")
-            m4.metric("Registros", len(df_filtrado))
+            m3.metric("SST Promedio", f"{avg_sst:.2f}")
+            m4.metric("Total Registros", len(df_filtrado))
 
-            # FILA 1: GRÁFICA DE PH (HISTÓRICO)
-            st.subheader("📈 Evolución Histórica de pH")
-            fig_ph = px.line(df_filtrado.sort_values('fecha'), x='fecha', y='ph', color='proceso', markers=True, title="pH por Fecha y Proceso")
-            fig_ph.add_hline(y=9.0, line_dash="dash", line_color="red", annotation_text="Límite Max")
-            fig_ph.add_hline(y=6.0, line_dash="dash", line_color="red", annotation_text="Límite Min")
-            st.plotly_chart(fig_ph, use_container_width=True)
+            # Gráfica de pH
+            st.subheader("📈 Análisis de pH")
+            fig_t = px.line(df_filtrado.sort_values('fecha'), x='fecha', y='ph', markers=True, title="Evolución Histórica de pH")
+            st.plotly_chart(fig_t, use_container_width=True)
 
-            # FILA 2: SST Y TEMPERATURA
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.subheader("📊 Sólidos Suspendidos (SST)")
-                df_sst_avg = df_filtrado.groupby('proceso')['sst'].mean().reset_index()
-                fig_sst = px.bar(df_sst_avg, x='proceso', y='sst', color='sst', color_continuous_scale='Viridis', title="Promedio SST por Proceso")
-                st.plotly_chart(fig_sst, use_container_width=True)
-
-            with col2:
-                st.subheader("🌡️ Temperatura por Etapa")
-                fig_temp = px.box(df_filtrado, x='proceso', y='temp', color='proceso', title="Dispersión de Temperatura")
-                st.plotly_chart(fig_temp, use_container_width=True)
-
-            # FILA 3: TABLA DE DATOS
-            st.subheader("📋 Detalle de Datos Filtrados")
+            # Tabla de Datos
+            st.subheader("📋 Detalle de Datos")
             st.dataframe(df_filtrado, use_container_width=True)
-            
         else:
-            st.warning("No hay datos para mostrar con los filtros actuales.")
+            st.warning("No se encontraron resultados para esa búsqueda.")
 
-    with t2: st.info("Módulo de Agua Tratada en construcción.")
-    with t3: st.info("Módulo de Mantenimiento en construcción.")
+    with t2: st.info("Módulo de Agua Tratada.")
+    with t3: st.info("Módulo de Mantenimiento.")
 
 except Exception as e:
-    st.error(f"Error en la aplicación: {e}")
+    st.error(f"Se detectó un error: {e}")
