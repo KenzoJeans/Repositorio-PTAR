@@ -37,6 +37,11 @@ def limpiar_datos_ptar(df):
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
     
+    # --- CARGA DE DATOS (VERTIMIENTOS) ---
+    # Usamos el nombre de pestaña 'vertimiento' visto en tus capturas
+    df_raw = conn.read(worksheet="vertimiento", ttl=0)
+    df_base = limpiar_datos_ptar(df_raw)
+
     # --- BARRA LATERAL ---
     try:
         st.sidebar.image("logo-white-kenzo.png", use_container_width=True)
@@ -44,11 +49,6 @@ try:
         pass
 
     st.sidebar.header("Filtros de Análisis")
-    
-    # CARGA DE DATOS (VERTIMIENTOS)
-    df_raw = conn.read(worksheet="vertimiento", ttl=0)
-    df_base = limpiar_datos_ptar(df_raw)
-
     if not df_base.empty:
         lista_p = sorted(df_base['proceso'].unique().tolist())
         procesos_sel = st.sidebar.multiselect("Filtrar Procesos:", lista_p, default=lista_p)
@@ -81,12 +81,12 @@ try:
     with t3:
         st.subheader("🛠️ Estado de Maquinaria")
         try:
-            # Leer pestaña 'mantenimiento'
+            # LEER PESTAÑA 'mantenimiento' (Nombre corregido según captura)
             df_m = conn.read(worksheet="mantenimiento", ttl=0)
             df_m.columns = df_m.columns.str.strip().str.upper()
             
             if not df_m.empty:
-                # Obtener reporte más reciente por equipo
+                # Obtener el reporte más reciente por equipo
                 col_ts = 'MARCA TEMPORAL' if 'MARCA TEMPORAL' in df_m.columns else df_m.columns[0]
                 df_m[col_ts] = pd.to_datetime(df_m[col_ts], errors='coerce')
                 df_m = df_m.sort_values(by=col_ts, ascending=False)
@@ -100,7 +100,7 @@ try:
                         salud = pd.to_numeric(salud_raw, errors='coerce') or 0
                         color = "green" if salud > 70 else "orange" if salud > 40 else "red"
                         
-                        # Bloque corregido
+                        # Bloque HTML corregido para tarjetas
                         st.markdown(f"""
                         <div style="border: 1px solid #444; padding: 15px; border-radius: 10px; background-color: #1e1e1e; text-align: center; min-height: 140px;">
                             <p style="margin: 0; font-weight: bold; color: white; font-size: 14px;">{row['EQUIPO']}</p>
