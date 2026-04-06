@@ -63,16 +63,11 @@ try:
     else:
         df_filtrado = df_base
 
-    # --- FILTRO POR QUÍMICOS ---
+    # --- FILTRO POR QUÍMICOS (ACTUALIZADO A BÚSQUEDA POR TEXTO) ---
     if not df_filtrado.empty and 'quimicos' in df_filtrado.columns:
-        lista_q = sorted(df_filtrado['quimicos'].dropna().unique().tolist())
-        if lista_q:
-            quimicos_sel = st.sidebar.multiselect(
-                "Selecciona el Químico:", 
-                options=lista_q, 
-                default=lista_q
-            )
-            df_filtrado = df_filtrado[df_filtrado['quimicos'].isin(quimicos_sel)]
+        busqueda_q = st.sidebar.text_input("🔍 Buscar Químico (escribe el nombre):", "")
+        if busqueda_q:
+            df_filtrado = df_filtrado[df_filtrado['quimicos'].astype(str).str.contains(busqueda_q, case=False, na=False)]
 
     # --- CUERPO PRINCIPAL ---
     t1, t2, t3 = st.tabs(["📊 Dashboard Vertimientos", "🧪 Agua Tratada", "🛠️ Mantenimiento"])
@@ -116,8 +111,8 @@ try:
             # Gráfica de puntos por proceso
             df_p = df_filtrado.groupby('proceso')['ph'].mean().reset_index()
             fig_p = px.scatter(df_p, x='proceso', y='ph', color='ph', 
-                             color_continuous_scale='RdYlGn_r', range_color=[5, 10], size=[15]*len(df_p),
-                             title="Promedio de pH por Etapa")
+                               color_continuous_scale='RdYlGn_r', range_color=[5, 10], size=[15]*len(df_p),
+                               title="Promedio de pH por Etapa")
             fig_p.update_traces(mode='lines+markers', line_color='lightgrey')
             st.plotly_chart(fig_p, use_container_width=True)
 
