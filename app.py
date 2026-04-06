@@ -3,7 +3,7 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import plotly.express as px
 from streamlit_plotly_events import plotly_events
-from PIL import Image
+import numpy as np
 
 # 1. Configuración de página y estilos corporativos
 st.set_page_config(page_title="Sistema Control PTAR", layout="wide", page_icon="💧")
@@ -31,18 +31,18 @@ def limpiar_datos_ptar(df):
         df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce').dt.date
     return df.dropna(subset=['ph'])
 
-# Lógica del Plano Interactivo de Mantenimiento (Coordenadas)
-def obtener_equipo_clic(x, y):
-    """Retorna el nombre del equipo basado en las coordenadas de la imagen (simplificado)"""
-    # X va de 0 a 100, Y va de 0 a 100
-    if 0 <= x <= 15 and 60 <= y <= 90: return "Tanque Homogeneización"
-    if 20 <= x <= 30 and 15 <= y <= 45: return "Tanque Coagulación (Agitador)"
-    if 30 <= x <= 50 and 30 <= y <= 70: return "Sedimentador"
-    if 50 <= x <= 65 and 30 <= y <= 70: return "Tanque Oxidación"
-    if 65 <= x <= 80 and 30 <= y <= 70: return "Sistema Filtración (Batería)"
-    if 80 <= x <= 90 and 40 <= y <= 70: return "Tanque Agua Tratada"
-    if 51 <= x <= 57 and 67 <= y <= 75: return "Bomba B1"
-    if 61 <= x <= 67 and 67 <= y <= 75: return "Bomba B2"
+# Lógica del Plano Interactivo (Mantenimiento)
+def obtener_equipo_clic_plotly(x, y):
+    """Retorna el nombre del equipo basado en las coordenadas del gráfico nativo"""
+    # X de 0 a 100, Y de 0 a 100
+    if 5 <= x <= 15 and 65 <= y <= 85: return "Tanque Homogeneización"
+    if 25 <= x <= 35 and 15 <= y <= 35: return "Tanque Coagulación (Agitador)"
+    if 40 <= x <= 50 and 45 <= y <= 65: return "Sedimentador"
+    if 60 <= x <= 70 and 30 <= y <= 50: return "Tanque Oxidación"
+    if 75 <= x <= 85 and 30 <= y <= 50: return "Sistema Filtración (Batería)"
+    if 85 <= x <= 95 and 10 <= y <= 30: return "Tanque Agua Tratada"
+    if 51 <= x <= 56 and 69 <= y <= 74: return "Bomba B1"
+    if 61 <= x <= 66 and 69 <= y <= 74: return "Bomba B2"
     return None
 
 # 3. Conexión y Carga de Datos
@@ -81,7 +81,7 @@ try:
             df_filtrado = df_filtrado[df_filtrado['quimicos'].astype(str).str.contains(busqueda_q, case=False, na=False)]
 
     # --- CUERPO PRINCIPAL ---
-    t1, t2, t3 = st.tabs(["📊 Dashboard Vertimientos", "🧪 Agua Tratada", "🛠️ Mantenimiento Interactivo"])
+    t1, t2, t3 = st.tabs(["📊 Dashboard Vertimientos", "🧪 Agua Tratada", "🛠️ Mantenimiento NATIVO"])
 
     with t1:
         if not df_filtrado.empty:
@@ -112,49 +112,75 @@ try:
     with t2:
         st.info("Módulo de Agua Tratada en desarrollo.")
 
-    # --- T3: MANTENIMIENTO INTERACTIVO (PLANO) ---
+    # --- T3: MANTENIMIENTO NATIVO (PLANO INTEGRADO) ---
     with t3:
-        st.subheader("🛠️ Bitácora de Mantenimiento Interactiva")
+        st.subheader("🛠️ Bitácora de Mantenimiento Integrada")
         st.markdown("Haz clic sobre una unidad o equipo en el plano lateral de la PTAR para ver su historial.")
 
-        # Cargar y configurar la imagen del plano lateral
-        try:
-            plano_imagen = Image.open("diagrama_lateral_ptar.png")
-            
-            # Crear un gráfico de Plotly con la imagen como fondo para capturar clics
-            fig_plano = px.scatter(x=[0, 100], y=[0, 100], labels={"x": "X", "y": "Y"}, range_x=[0, 100], range_y=[0, 100])
-            fig_plano.update_layout(images=[dict(source=plano_imagen, xref="x", yref="y", x=0, y=100, sizex=100, sizey=100, sizing="stretch", opacity=1, layer="below")])
-            fig_plano.update_traces(marker=dict(size=1, color="rgba(0,0,0,0)")) # Puntos invisibles
-            fig_plano.update_xaxes(visible=False); fig_plano.update_yaxes(visible=False) # Ocultar ejes
-            
-            # Capturar evento de clic sobre el plano
-            selected_point = plotly_events(fig_plano, click_event=True, hover_event=False, select_event=False, override_height=400, override_width="100%")
+        # -- DATOS SIMULADOS PARA PUNTOS DE INTERACCIÓN --
+        equipos_coord = {
+            'Equipo': ['Tanque Homogeneización', 'Tanque Coagulación (Agitador)', 'Sedimentador', 'Tanque Oxidación', 'Sistema Filtración (Batería)', 'Tanque Agua Tratada', 'Bomba B1', 'Bomba B2'],
+            'X': [10, 30, 45, 65, 80, 90, 53.5, 63.5],
+            'Y': [75, 25, 55, 40, 40, 20, 71.5, 71.5],
+            'Estado': ['Al día', 'Próximo', 'Al día', 'Al día', 'Vencido', 'Al día', 'Al día', 'Próximo']
+        }
+        df_equipos = pd.DataFrame(equipos_coord)
+        
+        # Mapeo de colores por estado (verde, amarillo, rojo)
+        map_colores = {'Al día': 'lime', 'Próximo': 'yellow', 'Vencido': 'red'}
+        df_equipos['Color'] = df_equipos['Estado'].map(map_colores)
 
-            equipo_seleccionado = None
-            if selected_point:
-                x_clic, y_clic = selected_point[0]['x'], selected_point[0]['y']
-                equipo_seleccionado = obtener_equipo_clic(x_clic, y_clic)
+        # -- CREACIÓN DEL PLANO NATIVO CON PLOTLY --
+        # Usamos una gráfica de dispersión como layout del plano
+        fig_plano_nativo = px.scatter(df_equipos, x='X', y='Y', text='Equipo', color='Estado',
+                                      color_discrete_map=map_colores, size=[15]*len(df_equipos),
+                                      title="Distribución de la Planta (Plano Nátivo Integrado)")
+
+        # Configuración estética para fondo transparente e integrado
+        fig_plano_nativo.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)',   # Fondo transparente
+            plot_bgcolor='rgba(0,0,0,0)',    # Fondo transparente
+            showlegend=False,
+            margin=dict(l=0, r=0, t=30, b=0),
+            xaxis=dict(showgrid=False, zeroline=False, visible=False, range=[0, 100]),
+            yaxis=dict(showgrid=False, zeroline=False, visible=False, range=[0, 100])
+        )
+        
+        # Ajustes de las burbujas (más transparentes, texto más claro)
+        fig_plano_nativo.update_traces(
+            textposition='top center', 
+            textfont=dict(color='lightgrey', size=11),
+            marker=dict(line=dict(color='lightgrey', width=1), opacity=0.8)
+        )
+
+        # -- CAPTURA DE CLIC (NATIVO) --
+        # Esta captura funciona sobre los puntos de Plotly, no sobre la imagen pegada
+        selected_point_nativo = plotly_events(fig_plano_nativo, click_event=True, override_height=300)
+
+        equipo_seleccionado_nativo = None
+        if selected_point_nativo:
+            # Obtenemos el nombre del equipo de la tabla basada en el punto clickeado
+            index_clic = selected_point_nativo[0]['pointIndex']
+            equipo_seleccionado_nativo = df_equipos.iloc[index_clic]['Equipo']
             
-            # Mostrar historial basado en el equipo seleccionado
-            if equipo_seleccionado:
-                st.markdown(f"**### Historial para: {equipo_seleccionado}**")
-                # -- AQUÍ DEBERÍA IR LA CARGA DE DATOS REALES DE MANTENIMIENTO --
-                # Por ahora, simulamos una bitácora básica
-                historial_simulado = {
-                    "Tanque Homogeneización": [{"Fecha": "2026-03-01", "Actividad": "Limpieza de lodos sedimentados", "Responsable": "Luis M."}, {"Fecha": "2026-01-15", "Actividad": "Ajuste de sensor de nivel", "Responsable": "Jorge P."}],
-                    "Bomba B1": [{"Fecha": "2026-03-10", "Actividad": "Cambio de sellos mecánicos", "Responsable": "Técnico Ext."}, {"Fecha": "2026-02-10", "Actividad": "Revisión de consumo eléctrico", "Responsable": "Luis M."}]
-                }
-                
-                if equipo_seleccionado in historial_simulado:
-                    df_h = pd.DataFrame(historial_simulado[equipo_seleccionado])
-                    st.dataframe(df_h, use_container_width=True)
-                else:
-                    st.info("No se registran actividades de mantenimiento para este equipo.")
+        # -- MOSTRAR HISTORIAL --
+        if equipo_seleccionado_nativo:
+            st.markdown(f"**### Historial para: {equipo_seleccionado_nativo}**")
+            
+            # Simulamos bitácora
+            historial_simulado_nativo = {
+                "Tanque Homogeneización": [{"Fecha": "2026-03-01", "Actividad": "Limpieza lodos", "Responsable": "Luis M."}, {"Fecha": "2026-01-15", "Actividad": "Ajuste sensor pH", "Responsable": "Jorge P."}],
+                "Bomba B1": [{"Fecha": "2026-03-10", "Actividad": "Cambio sellos", "Responsable": "Técnico Ext."}],
+                "Sistema Filtración (Batería)": [{"Fecha": "2025-11-20", "Actividad": "Limpieza de medios filtrantes", "Responsable": "Luis M."}]
+            }
+            
+            if equipo_seleccionado_nativo in historial_simulado_nativo:
+                df_h = pd.DataFrame(historial_simulado_nativo[equipo_seleccionado_nativo])
+                st.dataframe(df_h, use_container_width=True)
             else:
-                st.info("Haz clic en un equipo del plano (ej: Tanque Coagulación, Sedimentador, Bombas, Filtros) para iniciar.")
-
-        except:
-            st.error("Error: No se pudo cargar el archivo 'diagrama_lateral_ptar.png' desde el repositorio.")
+                st.info("No se registran actividades de mantenimiento para este equipo.")
+        else:
+            st.info("Haz clic en un punto de equipo del plano nativo (burbujas Verdes/Amarillas/Rojas) para iniciar.")
 
 except Exception as e:
-    st.error(f"Se detectó un error en la aplicación: {e}")
+    st.error(f"Se detectó un error crítico: {e}")
