@@ -3,4 +3,3 @@ st-gsheets-connection
 pandas
 plotly
 streamlit-plotly-events
-Pillow
