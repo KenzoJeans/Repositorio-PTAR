@@ -8,13 +8,11 @@ st.set_page_config(page_title="Sistema Control PTAR", layout="wide", page_icon="
 st.markdown('<style>div.block-container{padding-top:2rem;}</style>', unsafe_allow_html=True)
 st.markdown('<p style="font-size:30px; font-weight:bold; color:#1E88E5;">🏗️ Gestión Integral - Planta de Tratamiento</p>', unsafe_allow_html=True)
 
-# 2. Función de limpieza de datos mejorada
+# 2. Función de limpieza de datos
 def limpiar_datos_ptar(df):
     if df is None or df.empty:
         return pd.DataFrame()
-    
     df.columns = df.columns.str.strip()
-    # Mapeo flexible para evitar errores por nombres de columna
     mapeo = {
         'ph': 'ph', 'pH': 'ph', 'PH': 'ph',
         'temp': 'temp', 'Temperatura': 'temp',
@@ -24,76 +22,63 @@ def limpiar_datos_ptar(df):
         'Productos quimicos utilizados en el proceso': 'quimicos'
     }
     df = df.rename(columns={k: v for k, v in mapeo.items() if k in df.columns})
-
     for col in ['ph', 'temp', 'sst']:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', '.'), errors='coerce')
-    
     if 'fecha' in df.columns:
         df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce').dt.date
-    
     return df
 
 # 3. Conexión Principal
-conn = st.connection("gsheets", type=GSheetsConnection)
+try:
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    
+    # Intentamos leer las pestañas de forma independiente para que una no bloquee a la otra
+    def cargar_hoja(nombre):
+        try:
+            # Intentamos leer la pestaña específica, si falla, leemos la principal
+            return conn.read(worksheet=nombre, ttl=0)
+        except:
+            return conn.read(ttl=0) # Carga la primera hoja por defecto si el nombre falla
 
-# --- CUERPO PRINCIPAL ---
-t1, t2, t3 = st.tabs(["📊 Dashboard Vertimientos", "🧪 Agua Tratada", "🛠️ Mantenimiento"])
+    # --- CUERPO PRINCIPAL ---
+    t1, t2, t3 = st.tabs(["📊 Dashboard Vertimientos", "🧪 Agua Tratada", "🛠️ Mantenimiento"])
 
-with t1:
-    try:
-        # Carga específica para Vertimientos
-        df_raw = conn.read(worksheet="vertimiento", ttl=0)
-        df_base = limpiar_datos_ptar(df_raw)
+    with t1:
+        df_v = cargar_hoja("vertimiento")
+        df_filtrado = limpiar_datos_ptar(df_v)
         
-        # Filtros (simplificados para evitar errores de lógica)
-        if not df_base.empty:
-            st.sidebar.header("Filtros de Análisis")
-            # ... (Tus filtros de fecha y proceso se mantienen aquí)
+        if not df_filtrado.empty and 'ph' in df_filtrado.columns:
+            m1, m2, m3, m4 = st.columns(4)
+            avg_ph = df_filtrado['ph'].mean()
+            status_ph = "normal" if 6.0 <= avg_ph <= 9.0 else "inverse"
+            m1.metric("Promedio pH", f"{avg_ph:.2f}", delta="EN NORMA" if status_ph == "normal" else "FUERA", delta_color=status_ph)
+            m4.metric("Total Registros", len(df_filtrado))
             
-            # --- MÉTRICAS Y GRÁFICAS ---
-            # (El código de tus gráficas de pH y SST va aquí igual que antes)
-            st.success("Datos de vertimientos cargados correctamente.")
-            st.dataframe(df_base.head())
+            st.subheader("📋 Detalle de Vertimientos")
+            st.dataframe(df_filtrado, use_container_width=True)
         else:
-            st.warning("La pestaña 'vertimiento' está vacía.")
-    except Exception as e:
-        st.error(f"Error al cargar Vertimientos: Verifique que la pestaña se llame 'vertimiento'.")
+            st.error("No se pudo cargar la pestaña 'vertimiento'. Revisa el nombre en Google Sheets.")
 
-with t2:
-    st.info("Módulo de Agua Tratada en desarrollo.")
-
-with t3:
-    st.subheader("🛠️ Bitácora de Mantenimiento")
-    try:
-        # CARGA BLINDADA: Si falla, solo falla esta pestaña
-        df_m = conn.read(worksheet="mantenimiento", ttl=0)
+    with t3:
+        st.subheader("🛠️ Estado de Maquinaria")
+        df_m = cargar_hoja("mantenimiento")
         
         if not df_m.empty:
-            # Normalizamos nombres de columnas (Quitar espacios y pasar a MAYUS)
             df_m.columns = df_m.columns.str.strip().str.upper()
-            
-            # Identificar columna de fecha (Marca temporal o Fecha)
-            col_fecha = 'MARCA TEMPORAL' if 'MARCA TEMPORAL' in df_m.columns else df_m.columns[0]
-            df_m[col_fecha] = pd.to_datetime(df_m[col_fecha], errors='coerce')
-
-            # Visualización de KPIs de Salud
-            if 'EQUIPO' in df_m.columns and 'SALUD' in df_m.columns:
-                df_ult = df_m.sort_values(col_fecha).drop_duplicates('EQUIPO', keep='last')
-                cols_kpi = st.columns(len(df_ult))
-                
-                for i, (_, r) in enumerate(df_ult.iterrows()):
-                    with cols_kpi[i]:
-                        val_s = str(r['SALUD']).replace('%', '')
-                        num_s = pd.to_numeric(val_s, errors='coerce') or 0
-                        color = "green" if num_s >= 80 else "orange" if num_s >= 50 else "red"
-                        st.metric(label=r['EQUIPO'], value=f"{int(num_s)}%", delta=r.get('ESTADO', ''))
-            
-            st.divider()
-            st.write("### Historial de Intervenciones")
+            st.write("### Historial de Mantenimiento")
             st.dataframe(df_m, use_container_width=True)
-        else:
-            st.info("No hay datos en la pestaña de mantenimiento.")
             
-    except Exception as e:
-        st.error("Error en Mantenimiento: Asegúrese de que la pestaña se llame 'mantenimiento' y tenga las columnas: EQUIPO, SALUD, ESTADO.")
+            if 'EQUIPO' in df_m.columns and 'SALUD' in df_m.columns:
+                st.write("### ❤️ Salud de Equipos")
+                # Mostrar los últimos estados
+                df_resumen = df_m.drop_duplicates('EQUIPO', keep='last')
+                cols = st.columns(len(df_resumen))
+                for i, (_, row) in enumerate(df_resumen.iterrows()):
+                    with cols[i]:
+                        st.info(f"**{row['EQUIPO']}**\n\nSalud: {row['SALUD']}")
+        else:
+            st.error("No se pudo cargar la pestaña 'mantenimiento'.")
+
+except Exception as e:
+    st.error(f"Error de conexión: {e}. Revisa tus 'Secrets' en Streamlit.")
