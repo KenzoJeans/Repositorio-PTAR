@@ -8,6 +8,10 @@ st.set_page_config(page_title="Sistema Control PTAR", layout="wide", page_icon="
 st.markdown('<style>div.block-container{padding-top:2rem;}</style>', unsafe_allow_html=True)
 st.markdown('<p style="font-size:30px; font-weight:bold; color:#1E88E5;">🏗️ Gestión Integral - Planta de Tratamiento</p>', unsafe_allow_html=True)
 
+# --- CONFIGURACIÓN DE CONEXIÓN ---
+# PEGA AQUÍ LA URL QUE COPIASTE DE TU NAVEGADOR PARA LA PESTAÑA DE MANTENIMIENTO
+URL_DIRECTA_MANTO = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=746789412#gid=746789412" 
+
 # 2. Función de limpieza de datos (Pestaña Vertimiento)
 def limpiar_datos_ptar(df):
     if df is None or df.empty:
@@ -34,38 +38,93 @@ def limpiar_datos_ptar(df):
     return df.dropna(subset=['ph'])
 
 # 3. Conexión y Carga de Datos
-# IMPORTANTE: Copia aquí la URL de la pestaña de mantenimiento de tu navegador
-URL_DIRECTA_MANTO = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=746789412#gid=746789412"
-
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
     
-    # Carga Vertimiento (Hoja por defecto de la URL en Secrets)
+    # Carga Vertimiento (Hoja por defecto)
     df_raw = conn.read(ttl=0) 
     df_base = limpiar_datos_ptar(df_raw)
 
-    # Carga Mantenimiento (Usando el GID específico para evitar el Error 400)
-    if "gid=" in URL_DIRECTA_MANTO:
+    # Carga Mantenimiento (Método GID Anti-Error 400)
+    try:
         df_manto = conn.read(spreadsheet=URL_DIRECTA_MANTO, ttl=0)
-    else:
+    except:
         df_manto = pd.DataFrame()
-        st.warning("Por favor, ingresa una URL válida con el parámetro 'gid' para Mantenimiento.")
 
-    # --- INTERFAZ ---
+    # --- BARRA LATERAL (LOGO Y FILTROS) ---
+    try:
+        st.sidebar.image("logo-white-kenzo.png", use_container_width=True)
+    except:
+        st.sidebar.error("Logo no encontrado.")
+
+    st.sidebar.header("Filtros de Análisis")
+    
+    # Filtro de Fecha
+    if not df_base.empty and 'fecha' in df_base.columns:
+        min_f, max_f = min(df_base['fecha']), max(df_base['fecha'])
+        rango_fechas = st.sidebar.date_input("Rango de fechas:", [min_f, max_f])
+        if len(rango_fechas) == 2:
+            df_base = df_base[(df_base['fecha'] >= rango_fechas[0]) & (df_base['fecha'] <= rango_fechas[1])]
+
+    # Filtro de Proceso
+    if not df_base.empty and 'proceso' in df_base.columns:
+        lista_p = sorted(df_base['proceso'].unique().tolist())
+        procesos_sel = st.sidebar.multiselect("Selecciona el Proceso:", lista_p, default=lista_p)
+        df_filtrado = df_base[df_base['proceso'].isin(procesos_sel)]
+    else:
+        df_filtrado = df_base
+
+    # Filtro por Químicos
+    if not df_filtrado.empty and 'quimicos' in df_filtrado.columns:
+        busqueda_q = st.sidebar.text_input("🔍 Buscar Químico:", "")
+        if busqueda_q:
+            df_filtrado = df_filtrado[df_filtrado['quimicos'].astype(str).str.contains(busqueda_q, case=False, na=False)]
+
+    # --- CUERPO PRINCIPAL ---
     t1, t2, t3 = st.tabs(["📊 Dashboard Vertimientos", "🧪 Agua Tratada", "🛠️ Mantenimiento"])
 
     with t1:
-        if not df_base.empty:
-            # Filtros rápidos (simplificados para probar conexión)
-            st.subheader("📋 Detalle de Vertimientos")
-            st.dataframe(df_base, use_container_width=True)
-            
-            # Métricas
-            m1, m2 = st.columns(2)
-            m1.metric("Promedio pH", f"{df_base['ph'].mean():.2f}")
-            m2.metric("Total Registros", len(df_base))
+        if not df_filtrado.empty:
+            # MÉTRICAS
+            m1, m2, m3, m4 = st.columns(4)
+            avg_ph = df_filtrado['ph'].mean()
+            avg_temp = df_filtrado['temp'].mean()
+            avg_sst = df_filtrado['sst'].mean()
+
+            m1.metric("Promedio pH", f"{avg_ph:.2f}", 
+                      delta="EN NORMA" if 6.0 <= avg_ph <= 9.0 else "FUERA DE RANGO",
+                      delta_color="normal" if 6.0 <= avg_ph <= 9.0 else "inverse")
+            m2.metric("Temp Promedio", f"{avg_temp:.1f} °C",
+                      delta="ESTABLE" if avg_temp <= 40 else "ELEVADA",
+                      delta_color="normal" if avg_temp <= 40 else "inverse")
+            m3.metric("SST Promedio", f"{avg_sst:.2f}",
+                      delta="ÓPTIMO" if avg_sst <= 50 else "CRÍTICO",
+                      delta_color="normal" if avg_sst <= 50 else "inverse")
+            m4.metric("Total Registros", len(df_filtrado))
+
+            # GRÁFICAS
+            st.subheader("📈 Análisis de pH")
+            fig_t = px.line(df_filtrado.sort_values('fecha'), x='fecha', y='ph', markers=True, title="Evolución Histórica de pH")
+            fig_t.add_hline(y=9.0, line_dash="dash", line_color="red")
+            fig_t.add_hline(y=6.0, line_dash="dash", line_color="red")
+            st.plotly_chart(fig_t, use_container_width=True)
+
+            col_a, col_b = st.columns(2)
+            with col_a:
+                st.subheader("📊 Sólidos (SST)")
+                df_s = df_filtrado.groupby('proceso')['sst'].mean().reset_index()
+                fig_s = px.bar(df_s, x='proceso', y='sst', color='sst', title="Promedio SST por Etapa")
+                st.plotly_chart(fig_s, use_container_width=True)
+            with col_b:
+                st.subheader("🌡️ Temperatura")
+                df_temp_plot = df_filtrado.groupby('proceso')['temp'].mean().reset_index()
+                fig_temp = px.line(df_temp_plot, x='proceso', y='temp', markers=True, title="Temperatura por Etapa")
+                st.plotly_chart(fig_temp, use_container_width=True)
+
+            st.subheader("📋 Detalle de Datos")
+            st.dataframe(df_filtrado, use_container_width=True)
         else:
-            st.info("Esperando datos de Vertimientos...")
+            st.warning("No hay datos para mostrar con los filtros actuales.")
 
     with t2:
         st.info("Módulo de Agua Tratada en desarrollo.")
@@ -73,10 +132,10 @@ try:
     with t3:
         st.subheader("🛠️ Registro de Actividades de Mantenimiento")
         if not df_manto.empty:
-            st.success("¡Datos de mantenimiento cargados con éxito!")
+            st.success("Sincronización exitosa con la hoja de mantenimiento.")
             st.dataframe(df_manto, use_container_width=True)
         else:
-            st.warning("No se pudieron cargar los datos de Mantenimiento. Verifica la URL directa.")
+            st.warning("No se encontraron registros en la pestaña de mantenimiento.")
 
 except Exception as e:
-    st.error(f"Error en la aplicación: {e}")
+    st.error(f"Se detectó un error en la aplicación: {e}")
