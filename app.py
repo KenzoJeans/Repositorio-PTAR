@@ -71,7 +71,7 @@ try:
     except:
         df_manto = pd.DataFrame()
 
-    # --- BARRA LATERAL (Filtros actualizados) ---
+    # --- BARRA LATERAL (Filtros con búsqueda de texto) ---
     st.sidebar.header("Filtros Dashboard Vertimientos")
     df_vert_filtrado = df_base_full.copy()
 
@@ -83,17 +83,18 @@ try:
             if len(rango) == 2:
                 df_vert_filtrado = df_vert_filtrado[(df_vert_filtrado['fecha'] >= rango[0]) & (df_vert_filtrado['fecha'] <= rango[1])]
 
-        # Filtro de Procesos
+        # Filtro de Procesos (Multiselect se queda igual por ser categorías cerradas)
         if 'proceso' in df_base_full.columns:
             procesos = sorted(df_base_full['proceso'].unique().tolist())
             sel_p = st.sidebar.multiselect("Procesos:", procesos, default=procesos)
             df_vert_filtrado = df_vert_filtrado[df_vert_filtrado['proceso'].isin(sel_p)]
         
-        # NUEVO: Filtro de Químicos
+        # AJUSTE: Filtro de Químicos por ESCRITURA (text_input)
         if 'quimicos' in df_base_full.columns:
-            quim_list = sorted(df_base_full['quimicos'].dropna().unique().tolist())
-            sel_q = st.sidebar.multiselect("Químicos Utilizados:", quim_list, default=quim_list)
-            df_vert_filtrado = df_vert_filtrado[df_vert_filtrado['quimicos'].isin(sel_q)]
+            busqueda_quim = st.sidebar.text_input("🔍 Buscar por Químico:", "").strip().lower()
+            if busqueda_quim:
+                # Busca el texto dentro de la columna, sin importar mayúsculas/minúsculas
+                df_vert_filtrado = df_vert_filtrado[df_vert_filtrado['quimicos'].astype(str).str.lower().str.contains(busqueda_quim)]
 
     # --- TABS ---
     t1, t2, t3 = st.tabs(["📊 Dashboard Vertimientos", "🧪 Agua Tratada", "🛠️ Mantenimiento"])
@@ -108,37 +109,32 @@ try:
             m3.metric("SST Promedio", f"{avg_sst:.1f} mg/L")
             m4.metric("Registros", len(df_vert_filtrado))
 
-            # GRÁFICAS CON COLORES MEJORADOS
             st.subheader("📈 Histórico de pH (Entrada)")
             fig_ph = px.line(df_vert_filtrado.sort_values('fecha'), x='fecha', y='ph', 
-                             markers=True, template="plotly_dark", 
-                             color_discrete_sequence=['#00D4FF']) # Cian brillante
-            fig_ph.add_hline(y=9.0, line_dash="dash", line_color="#FF4B4B", annotation_text="Límite Sup")
-            fig_ph.add_hline(y=6.0, line_dash="dash", line_color="#FF4B4B", annotation_text="Límite Inf")
+                             markers=True, template="plotly_dark", color_discrete_sequence=['#00D4FF'])
+            fig_ph.add_hline(y=9.0, line_dash="dash", line_color="#FF4B4B")
+            fig_ph.add_hline(y=6.0, line_dash="dash", line_color="#FF4B4B")
             st.plotly_chart(fig_ph, use_container_width=True)
 
             col_a, col_b = st.columns(2)
             with col_a:
                 st.write("**SST por Proceso (Carga Orgánica)**")
-                # Escala de colores 'Viridis' para que no sea plano
                 fig_sst = px.bar(df_vert_filtrado.groupby('proceso')['sst'].mean().reset_index(), 
                                  x='proceso', y='sst', color='sst', 
                                  color_continuous_scale='Turbo', template="plotly_dark")
                 st.plotly_chart(fig_sst, use_container_width=True)
             with col_b:
                 st.write("**Variación de Temperatura**")
-                # Gráfico de área para dar más peso visual
                 fig_temp = px.area(df_vert_filtrado.groupby('proceso')['temp'].mean().reset_index(), 
                                    x='proceso', y='temp', markers=True, 
                                    template="plotly_dark", color_discrete_sequence=['#FFA500'])
                 st.plotly_chart(fig_temp, use_container_width=True)
             
-            st.markdown("### 📋 Detalle de Registros")
             st.dataframe(df_vert_filtrado, use_container_width=True)
         else:
-            st.warning("No hay datos disponibles con los filtros seleccionados.")
+            st.warning("No hay datos para mostrar con este criterio de búsqueda.")
 
-    # (Pestañas 2 y 3 se mantienen iguales al código anterior que ya funcionaba)
+    # Pestañas 2 y 3 intactas
     with t2:
         st.subheader("🧪 Monitoreo de Agua Tratada (Salida)")
         if not df_tratada.empty:
