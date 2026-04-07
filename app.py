@@ -10,7 +10,7 @@ st.markdown('<p style="font-size:30px; font-weight:bold; color:#1E88E5;">🏗️
 
 # --- CONFIGURACIÓN DE CONEXIÓN ---
 # Pega aquí la URL de tu pestaña 'mantenimiento' (la que tiene el gid=XXXXX)
-URL_DIRECTA_MANTO = "TU_URL_AQUI_CON_EL_GID" 
+URL_DIRECTA_MANTO = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=746789412#gid=746789412" 
 
 # 2. Función de limpieza de datos (Pestaña Vertimiento)
 def limpiar_datos_ptar(df):
