@@ -9,8 +9,8 @@ st.markdown('<style>div.block-container{padding-top:2rem;}</style>', unsafe_allo
 st.markdown('<p style="font-size:30px; font-weight:bold; color:#1E88E5;">🏗️ Gestión Integral - Planta de Tratamiento</p>', unsafe_allow_html=True)
 
 # --- CONFIGURACIÓN DE CONEXIÓN ---
-# IMPORTANTE: Pega aquí la URL de la pestaña 'mantenimiento' (la que tiene el gid=XXXXX)
-URL_DIRECTA_MANTO = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=746789412#gid=746789412" 
+# IMPORTANTE: Reemplaza con la URL de tu pestaña 'mantenimiento' que copiaste del navegador
+URL_DIRECTA_MANTO = "TU_URL_AQUI_CON_EL_GID" 
 
 # 2. Función de limpieza de datos (Pestaña Vertimiento)
 def limpiar_datos_ptar(df):
@@ -41,14 +41,14 @@ def limpiar_datos_ptar(df):
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
     
-    # Carga Vertimiento (Hoja por defecto configurada en Secrets)
+    # Carga Vertimiento (Hoja principal configurada en Secrets)
     df_raw = conn.read(ttl=0) 
     df_base = limpiar_datos_ptar(df_raw)
 
     # Carga Mantenimiento (Método GID para evitar Error 400)
     try:
         df_manto = conn.read(spreadsheet=URL_DIRECTA_MANTO, ttl=0)
-        df_manto.columns = df_manto.columns.str.strip() # Limpiar espacios en nombres de columnas
+        df_manto.columns = df_manto.columns.str.strip()
     except:
         df_manto = pd.DataFrame()
 
@@ -121,35 +121,53 @@ try:
         st.subheader("🛠️ Panel de Control de Mantenimiento")
         
         if not df_manto.empty:
-            # INDICADORES DE MANTENIMIENTO
+            # --- DISEÑO DE TARJETAS (CARDS) ---
             c1, c2, c3, c4 = st.columns(4)
             
-            # Salud Promedio
-            if 'SALUD' in df_manto.columns:
-                df_manto['SALUD'] = pd.to_numeric(df_manto['SALUD'], errors='coerce')
-                salud_val = df_manto['SALUD'].mean()
-                c1.metric("Salud Promedio", f"{salud_val:.1f}/10", 
-                          delta="SANA" if salud_val >= 7 else "CRÍTICA",
-                          delta_color="normal" if salud_val >= 7 else "inverse")
+            with c1:
+                if 'SALUD' in df_manto.columns:
+                    df_manto['SALUD'] = pd.to_numeric(df_manto['SALUD'], errors='coerce')
+                    avg_s = df_manto['SALUD'].mean()
+                    st.markdown(f"""
+                        <div style="background-color: #1E1E1E; padding: 20px; border-radius: 10px; border-left: 5px solid #4CAF50;">
+                            <p style="color: #888; font-size: 14px; margin-bottom: 5px;">Salud Promedio</p>
+                            <h2 style="margin: 0;">{avg_s:.1f} <span style="font-size: 14px; color: #4CAF50;">/ 10</span></h2>
+                        </div>
+                    """, unsafe_allow_html=True)
 
-            # Conteo de Estado Óptimo
-            if 'ESTADO' in df_manto.columns:
-                optimos = len(df_manto[df_manto['ESTADO'].str.upper() == 'OPTIMO'])
-                c2.metric("Equipos Óptimos", f"{optimos}", f"de {len(df_manto)}")
+            with c2:
+                if 'ESTADO' in df_manto.columns:
+                    optimos = len(df_manto[df_manto['ESTADO'].str.upper() == 'OPTIMO'])
+                    st.markdown(f"""
+                        <div style="background-color: #1E1E1E; padding: 20px; border-radius: 10px; border-left: 5px solid #2196F3;">
+                            <p style="color: #888; font-size: 14px; margin-bottom: 5px;">Equipos Óptimos</p>
+                            <h2 style="margin: 0;">{optimos} <span style="font-size: 14px; color: #2196F3;">de {len(df_manto)}</span></h2>
+                        </div>
+                    """, unsafe_allow_html=True)
 
-            # Último Equipo intervenido
-            if 'EQUIPO' in df_manto.columns:
-                ultimo_eq = df_manto['EQUIPO'].iloc[-1]
-                c3.metric("Última Draga/Equipo", ultimo_eq)
+            with c3:
+                ultimo_op = df_manto['Operario'].iloc[-1] if 'Operario' in df_manto.columns else "N/A"
+                st.markdown(f"""
+                    <div style="background-color: #1E1E1E; padding: 20px; border-radius: 10px; border-left: 5px solid #FF9800;">
+                        <p style="color: #888; font-size: 14px; margin-bottom: 5px;">Último Operario</p>
+                        <h2 style="margin: 0; font-size: 20px;">{ultimo_op}</h2>
+                    </div>
+                """, unsafe_allow_html=True)
 
-            c4.metric("Total Intervenciones", len(df_manto))
+            with c4:
+                st.markdown(f"""
+                    <div style="background-color: #1E1E1E; padding: 20px; border-radius: 10px; border-left: 5px solid #9C27B0;">
+                        <p style="color: #888; font-size: 14px; margin-bottom: 5px;">Intervenciones</p>
+                        <h2 style="margin: 0;">{len(df_manto)}</h2>
+                    </div>
+                """, unsafe_allow_html=True)
 
-            st.markdown("---")
+            st.markdown("<br>", unsafe_allow_html=True)
 
-            # VISUALIZACIÓN
+            # --- VISUALIZACIÓN ---
             col_tabla, col_grafica = st.columns([2, 1])
             with col_tabla:
-                st.write("**Historial de Mantenimiento:**")
+                st.write("**Historial Detallado:**")
                 st.dataframe(df_manto, use_container_width=True)
             
             with col_grafica:
@@ -157,10 +175,10 @@ try:
                     st.write("**Salud por Equipo:**")
                     fig_m = px.bar(df_manto, x='EQUIPO', y='SALUD', color='SALUD',
                                   color_continuous_scale='RdYlGn', range_color=[0, 10])
-                    fig_m.update_layout(height=300, showlegend=False)
+                    fig_m.update_layout(height=300, showlegend=False, template="plotly_dark")
                     st.plotly_chart(fig_m, use_container_width=True)
         else:
             st.warning("No se encontraron registros de mantenimiento.")
 
 except Exception as e:
-    st.error(f"Error general: {e}")
+    st.error(f"Error general en la aplicación: {e}")
