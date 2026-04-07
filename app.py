@@ -26,34 +26,50 @@ def limpiar_datos_ptar(df):
 
     for col in ['ph', 'temp', 'sst']:
         if col in df.columns:
+            # Limpieza de comas por puntos para números
             df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', '.'), errors='coerce')
     
     if 'fecha' in df.columns:
         df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce').dt.date
     
+    # Retornamos solo si tiene pH válido para las métricas
     return df.dropna(subset=['ph'])
 
-# 3. Conexión y Carga de Datos
+# 3. Conexión y Carga de Datos Separada
+df_base = pd.DataFrame()
+df_manto = pd.DataFrame()
+
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
     
-    # CARGA DE PESTAÑA 1 (Vertimiento)
-    df_raw = conn.read(worksheet="vertimiento", ttl=0) # Especificamos nombre para asegurar
-    df_base = limpiar_datos_ptar(df_raw)
+    # --- CARGA INDEPENDIENTE: VERTIMIENTO ---
+    try:
+        df_raw = conn.read(worksheet="vertimiento", ttl=0)
+        df_base = limpiar_datos_ptar(df_raw)
+    except Exception as e_v:
+        st.error(f"Error cargando pestaña 'vertimiento': {e_v}")
 
-    # CARGA DE PESTAÑA 3 (Mantenimiento)
-    # Si esta línea falla, revisa que el nombre en el Excel sea exactamente "mantenimiento"
-    df_manto = conn.read(worksheet="mantenimiento", ttl=0)
+    # --- CARGA INDEPENDIENTE: MANTENIMIENTO ---
+    try:
+        df_manto = conn.read(worksheet="mantenimiento", ttl=0)
+    except Exception as e_m:
+        st.warning(f"Aviso: No se pudo conectar con 'mantenimiento'. Revisa el nombre de la pestaña. Error: {e_m}")
 
-    # --- BARRA LATERAL ---
+except Exception as e_global:
+    st.error(f"Error crítico de conexión general: {e_global}")
+
+# --- 4. INTERFAZ Y LÓGICA ---
+if not df_base.empty or not df_manto.empty:
+    
+    # BARRA LATERAL
     try:
         st.sidebar.image("logo-white-kenzo.png", use_container_width=True)
     except:
-        st.sidebar.error("Error: No se encontró el logo.")
+        pass
 
     st.sidebar.header("Filtros de Análisis")
     
-    # Filtro de Fecha (Basado en Vertimiento)
+    # Filtro de Fecha (Solo si hay datos en vertimiento)
     if not df_base.empty and 'fecha' in df_base.columns:
         min_f, max_f = min(df_base['fecha']), max(df_base['fecha'])
         rango_fechas = st.sidebar.date_input("Rango de fechas:", [min_f, max_f])
@@ -68,7 +84,7 @@ try:
     else:
         df_filtrado = df_base
 
-    # --- CUERPO PRINCIPAL ---
+    # TABS
     t1, t2, t3 = st.tabs(["📊 Dashboard Vertimientos", "🧪 Agua Tratada", "🛠️ Mantenimiento"])
 
     with t1:
@@ -90,23 +106,17 @@ try:
             st.subheader("📋 Detalle de Datos")
             st.dataframe(df_filtrado, use_container_width=True)
         else:
-            st.warning("No hay datos para los filtros seleccionados.")
+            st.info("Esperando datos de Vertimientos...")
 
     with t2:
         st.info("Módulo de Agua Tratada en desarrollo.")
 
     with t3:
         st.subheader("🛠️ Registro de Actividades de Mantenimiento")
-        if df_manto is not None and not df_manto.empty:
-            st.write("A continuación se muestran los reportes de mantenimiento realizados:")
+        if not df_manto.empty:
+            st.write("Datos sincronizados desde la pestaña 'mantenimiento':")
             st.dataframe(df_manto, use_container_width=True)
-            
-            # Un pequeño extra: Conteo por tipo de equipo/tarea si existe la columna
-            if 'Equipo' in df_manto.columns:
-                fig_manto = px.pie(df_manto, names='Equipo', title="Distribución de Mantenimiento por Equipo")
-                st.plotly_chart(fig_manto, use_container_width=True)
         else:
-            st.warning("No se encontraron datos en la pestaña de mantenimiento.")
-
-except Exception as e:
-    st.error(f"Se detectó un error: {e}")
+            st.warning("No hay datos disponibles para mostrar en Mantenimiento.")
+else:
+    st.error("No se pudo cargar ninguna información. Por favor revisa la conexión con Google Sheets.")
