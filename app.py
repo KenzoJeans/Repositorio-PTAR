@@ -9,46 +9,110 @@ st.markdown('<style>div.block-container{padding-top:2rem;}</style>', unsafe_allo
 st.markdown('<p style="font-size:30px; font-weight:bold; color:#1E88E5;">🏗️ Gestión Integral - Planta de Tratamiento</p>', unsafe_allow_html=True)
 
 # --- CONFIGURACIÓN DE CONEXIÓN ---
-# Pega aquí la URL de tu pestaña 'mantenimiento' (la que tiene el gid=XXXXX)
-URL_DIRECTA_MANTO = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=746789412#gid=746789412" 
+# IMPORTANTE: Reemplaza con la URL de tu pestaña 'mantenimiento' que copiaste del navegador
+URL_DIRECTA_MANTO = "TU_URL_AQUI_CON_EL_GID" 
 
-# 2. Función de limpieza de datos (Pestaña Vertimiento)
+# 2. Función de limpieza de datos (Pestaña Vertimiento - CODIGO BASE)
 def limpiar_datos_ptar(df):
-    if df is None or df.empty: return pd.DataFrame()
+    if df is None or df.empty:
+        return pd.DataFrame()
+    
     df.columns = df.columns.str.strip()
-    mapeo = {'ph': 'ph', 'pH': 'ph', 'temp': 'temp', 'sst': 'sst', 'Fecha del reporte': 'fecha', 'Proceso a reportar': 'proceso'}
+    mapeo = {
+        'ph': 'ph', 'pH': 'ph', 'PH': 'ph',
+        'temp': 'temp', 'Temperatura': 'temp',
+        'sst': 'sst', 'Solidos suspendidos': 'sst',
+        'Fecha del reporte': 'fecha', 'fecha': 'fecha',
+        'Proceso a reportar': 'proceso',
+        'Productos quimicos utilizados en el proceso': 'quimicos'
+    }
     df = df.rename(columns={k: v for k, v in mapeo.items() if k in df.columns})
+
     for col in ['ph', 'temp', 'sst']:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', '.'), errors='coerce')
+    
     if 'fecha' in df.columns:
         df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce').dt.date
+    
     return df.dropna(subset=['ph'])
 
-# 3. Conexión y Carga
+# 3. Conexión y Carga de Datos
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
-    df_base = limpiar_datos_ptar(conn.read(ttl=0))
+    
+    # Carga Vertimiento (Hoja principal de Secrets)
+    df_raw = conn.read(ttl=0) 
+    df_base = limpiar_datos_ptar(df_raw)
+
+    # Carga Mantenimiento (URL Directa)
     try:
         df_manto = conn.read(spreadsheet=URL_DIRECTA_MANTO, ttl=0)
         df_manto.columns = df_manto.columns.str.strip()
     except:
         df_manto = pd.DataFrame()
 
-    # --- BARRA LATERAL ---
-    try: st.sidebar.image("logo-white-kenzo.png", use_container_width=True)
-    except: pass
+    # --- BARRA LATERAL (FILTROS ORIGINALES) ---
+    try:
+        st.sidebar.image("logo-white-kenzo.png", use_container_width=True)
+    except:
+        pass
+
+    st.sidebar.header("Filtros de Análisis")
+    
+    if not df_base.empty and 'fecha' in df_base.columns:
+        min_f, max_f = min(df_base['fecha']), max(df_base['fecha'])
+        rango_fechas = st.sidebar.date_input("Rango de fechas:", [min_f, max_f])
+        if len(rango_fechas) == 2:
+            df_base = df_base[(df_base['fecha'] >= rango_fechas[0]) & (df_base['fecha'] <= rango_fechas[1])]
+
+    if not df_base.empty and 'proceso' in df_base.columns:
+        lista_p = sorted(df_base['proceso'].unique().tolist())
+        procesos_sel = st.sidebar.multiselect("Selecciona el Proceso:", lista_p, default=lista_p)
+        df_filtrado = df_base[df_base['proceso'].isin(procesos_sel)]
+    else:
+        df_filtrado = df_base
 
     # --- CUERPO PRINCIPAL ---
     t1, t2, t3 = st.tabs(["📊 Dashboard Vertimientos", "🧪 Agua Tratada", "🛠️ Mantenimiento"])
 
     with t1:
-        if not df_base.empty:
-            m1, m2, m3 = st.columns(3)
-            m1.metric("Promedio pH", f"{df_base['ph'].mean():.2f}")
-            m2.metric("Temp Máxima", f"{df_base['temp'].max():.1f} °C")
-            m3.metric("Total Reportes", len(df_base))
-            st.plotly_chart(px.line(df_base.sort_values('fecha'), x='fecha', y='ph', title="Histórico pH"), use_container_width=True)
+        if not df_filtrado.empty:
+            # MÉTRICAS ORIGINALES
+            m1, m2, m3, m4 = st.columns(4)
+            avg_ph = df_filtrado['ph'].mean()
+            avg_temp = df_filtrado['temp'].mean()
+            avg_sst = df_filtrado['sst'].mean()
+
+            m1.metric("Promedio pH", f"{avg_ph:.2f}", 
+                      delta="EN NORMA" if 6.0 <= avg_ph <= 9.0 else "FUERA DE RANGO",
+                      delta_color="normal" if 6.0 <= avg_ph <= 9.0 else "inverse")
+            m2.metric("Temp Promedio", f"{avg_temp:.1f} °C",
+                      delta="ESTABLE" if avg_temp <= 40 else "ELEVADA")
+            m3.metric("SST Promedio", f"{avg_sst:.2f}",
+                      delta="ÓPTIMO" if avg_sst <= 50 else "CRÍTICO")
+            m4.metric("Total Registros", len(df_filtrado))
+
+            # GRÁFICAS ORIGINALES
+            st.subheader("📈 Análisis de pH")
+            fig_t = px.line(df_filtrado.sort_values('fecha'), x='fecha', y='ph', markers=True)
+            fig_t.add_hline(y=9.0, line_dash="dash", line_color="red")
+            fig_t.add_hline(y=6.0, line_dash="dash", line_color="red")
+            st.plotly_chart(fig_t, use_container_width=True)
+
+            col_a, col_b = st.columns(2)
+            with col_a:
+                st.subheader("📊 Sólidos (SST)")
+                df_s = df_filtrado.groupby('proceso')['sst'].mean().reset_index()
+                fig_s = px.bar(df_s, x='proceso', y='sst', color='sst')
+                st.plotly_chart(fig_s, use_container_width=True)
+            with col_b:
+                st.subheader("🌡️ Temperatura")
+                df_temp_plot = df_filtrado.groupby('proceso')['temp'].mean().reset_index()
+                fig_temp = px.line(df_temp_plot, x='proceso', y='temp', markers=True)
+                st.plotly_chart(fig_temp, use_container_width=True)
+            
+            st.dataframe(df_filtrado, use_container_width=True)
         else:
             st.warning("No hay datos en Vertimientos.")
 
@@ -56,52 +120,62 @@ try:
         st.info("Módulo en desarrollo.")
 
     with t3:
-        st.subheader("🛠️ Estado Individual por Equipo")
+        st.subheader("🛠️ Panel de Mantenimiento por Equipo")
         
         if not df_manto.empty:
-            # 1. RESUMEN GENERAL (TARJETAS SUPERIORES)
-            st.markdown("### Resumen del Sistema")
-            cols_resumen = st.columns(4)
-            avg_salud_gen = pd.to_numeric(df_manto['SALUD'], errors='coerce').mean()
-            cols_resumen[0].metric("Salud Global", f"{avg_salud_gen:.1f}/10")
-            cols_resumen[1].metric("Equipos Activos", len(df_manto['EQUIPO'].unique()))
-            cols_resumen[2].metric("Total Mantos", len(df_manto))
-            cols_resumen[3].metric("Última Fecha", str(df_manto['Fecha'].iloc[-1]))
+            # 1. Resumen General en Cards (Estilo Ayer)
+            c1, c2, c3, c4 = st.columns(4)
+            avg_salud = pd.to_numeric(df_manto['SALUD'], errors='coerce').mean()
             
-            st.markdown("---")
-            
-            # 2. TARJETAS INDIVIDUALES POR EQUIPO
-            st.markdown("### Fichas de Equipos Registrados")
-            # Creamos una cuadrícula de 3 columnas para las tarjetas de los equipos
-            equipos = df_manto['EQUIPO'].unique()
-            cols_cards = st.columns(3)
-            
-            for i, equipo in enumerate(equipos):
-                # Obtenemos el último registro de este equipo específico
-                datos_eq = df_manto[df_manto['EQUIPO'] == equipo].iloc[-1]
-                salud = pd.to_numeric(datos_eq['SALUD'], errors='coerce')
-                color = "#4CAF50" if salud >= 8 else "#FFEB3B" if salud >= 6 else "#F44336"
+            # Tarjeta Salud General con HTML para diseño "Card"
+            st.markdown(f"""
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px;">
+                    <div style="background-color: #1E1E1E; padding: 15px; border-radius: 10px; border-left: 5px solid #4CAF50;">
+                        <small style="color: #888;">Salud Global</small><br>
+                        <strong style="font-size: 20px;">{avg_salud:.1f}/10</strong>
+                    </div>
+                    <div style="background-color: #1E1E1E; padding: 15px; border-radius: 10px; border-left: 5px solid #2196F3;">
+                        <small style="color: #888;">Equipos</small><br>
+                        <strong style="font-size: 20px;">{len(df_manto['EQUIPO'].unique())}</strong>
+                    </div>
+                    <div style="background-color: #1E1E1E; padding: 15px; border-radius: 10px; border-left: 5px solid #FF9800;">
+                        <small style="color: #888;">Último Operario</small><br>
+                        <strong style="font-size: 16px;">{df_manto['Operario'].iloc[-1]}</strong>
+                    </div>
+                    <div style="background-color: #1E1E1E; padding: 15px; border-radius: 10px; border-left: 5px solid #9C27B0;">
+                        <small style="color: #888;">Total Reportes</small><br>
+                        <strong style="font-size: 20px;">{len(df_manto)}</strong>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+
+            # 2. SECCIÓN DE TARJETAS INDIVIDUALES (Lo nuevo que te gustó)
+            st.markdown("### Estado de Equipos Registrados")
+            equipos_unicos = df_manto['EQUIPO'].unique()
+            columnas_equipos = st.columns(3) # Cuadrícula de 3
+
+            for idx, eq_nombre in enumerate(equipos_unicos):
+                # Obtener el último dato de ese equipo
+                ultimo_dato = df_manto[df_manto['EQUIPO'] == eq_nombre].iloc[-1]
+                salud_val = pd.to_numeric(ultimo_dato['SALUD'], errors='coerce')
                 
-                with cols_cards[i % 3]:
+                # Color según salud
+                color_borde = "#4CAF50" if salud_val >= 8 else "#FFEB3B" if salud_val >= 6 else "#F44336"
+                
+                with columnas_equipos[idx % 3]:
                     st.markdown(f"""
-                        <div style="background-color: #1E1E1E; padding: 15px; border-radius: 10px; border-top: 4px solid {color}; margin-bottom: 20px;">
-                            <h4 style="margin: 0; color: white;">⚙️ {equipo}</h4>
-                            <p style="margin: 5px 0; font-size: 13px; color: #BBB;">Estado: <b>{datos_eq['ESTADO']}</b></p>
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="font-size: 20px; font-weight: bold; color: {color};">{salud}/10</span>
-                                <span style="font-size: 11px; color: #888;">Prox: {datos_eq['FECHA PROX MANTENIMIENTO']}</span>
-                            </div>
-                            <p style="margin-top: 10px; font-size: 12px; font-style: italic; color: #999;">
-                                Ult. tarea: {datos_eq['QUE SE REALIZO'][:40]}...
-                            </p>
+                        <div style="background-color: #1E1E1E; padding: 15px; border-radius: 10px; border-top: 5px solid {color_borde}; margin-bottom: 15px; height: 180px;">
+                            <h4 style="margin-bottom: 5px;">⚙️ {eq_nombre}</h4>
+                            <p style="font-size: 14px; margin: 0; color: {color_borde};">Salud: <b>{salud_val}/10</b></p>
+                            <p style="font-size: 12px; margin: 5px 0;">Estado: {ultimo_dato['ESTADO']}</p>
+                            <hr style="margin: 10px 0; border: 0.5px solid #333;">
+                            <p style="font-size: 11px; color: #888;"><b>Última tarea:</b><br>{ultimo_dato['QUE SE REALIZO'][:60]}...</p>
+                            <p style="font-size: 10px; color: #555; text-align: right;">Prox: {ultimo_dato['FECHA PROX MANTENIMIENTO']}</p>
                         </div>
                     """, unsafe_allow_html=True)
 
-            # 3. TABLA DETALLADA AL FINAL
-            with st.expander("Ver historial completo de mantenimiento"):
+            with st.expander("Ver tabla completa de mantenimiento"):
                 st.dataframe(df_manto, use_container_width=True)
-        else:
-            st.warning("No hay registros en mantenimiento.")
 
 except Exception as e:
-    st.error(f"Error: {e}")
+    st.error(f"Error detectado: {e}")
