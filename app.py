@@ -8,7 +8,7 @@ st.set_page_config(page_title="Sistema Control PTAR", layout="wide", page_icon="
 st.markdown('<style>div.block-container{padding-top:2rem;}</style>', unsafe_allow_html=True)
 st.markdown('<p style="font-size:30px; font-weight:bold; color:#1E88E5;">🏗️ Gestión Integral - Planta de Tratamiento</p>', unsafe_allow_html=True)
 
-# 2. Función de limpieza de datos
+# 2. Función de limpieza de datos (Pestaña Vertimiento)
 def limpiar_datos_ptar(df):
     if df is None or df.empty:
         return pd.DataFrame()
@@ -36,19 +36,24 @@ def limpiar_datos_ptar(df):
 # 3. Conexión y Carga de Datos
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
-    df_raw = conn.read(ttl=0)
+    
+    # CARGA DE PESTAÑA 1 (Vertimiento)
+    df_raw = conn.read(worksheet="vertimiento", ttl=0) # Especificamos nombre para asegurar
     df_base = limpiar_datos_ptar(df_raw)
 
-    # --- BARRA LATERAL (LOGO Y FILTROS) ---
-    # Ajusta el nombre según lo tengas en tu GitHub (ej: "logo-white-kenzo.png")
+    # CARGA DE PESTAÑA 3 (Mantenimiento)
+    # Si esta línea falla, revisa que el nombre en el Excel sea exactamente "mantenimiento"
+    df_manto = conn.read(worksheet="mantenimiento", ttl=0)
+
+    # --- BARRA LATERAL ---
     try:
         st.sidebar.image("logo-white-kenzo.png", use_container_width=True)
     except:
-        st.sidebar.error("Error: No se encontró el archivo del logo en el repositorio.")
+        st.sidebar.error("Error: No se encontró el logo.")
 
     st.sidebar.header("Filtros de Análisis")
     
-    # Filtro de Fecha
+    # Filtro de Fecha (Basado en Vertimiento)
     if not df_base.empty and 'fecha' in df_base.columns:
         min_f, max_f = min(df_base['fecha']), max(df_base['fecha'])
         rango_fechas = st.sidebar.date_input("Rango de fechas:", [min_f, max_f])
@@ -63,73 +68,25 @@ try:
     else:
         df_filtrado = df_base
 
-    # --- FILTRO POR QUÍMICOS (ACTUALIZADO A BÚSQUEDA POR TEXTO) ---
-    if not df_filtrado.empty and 'quimicos' in df_filtrado.columns:
-        busqueda_q = st.sidebar.text_input("🔍 Buscar Químico (escribe el nombre):", "")
-        if busqueda_q:
-            df_filtrado = df_filtrado[df_filtrado['quimicos'].astype(str).str.contains(busqueda_q, case=False, na=False)]
-
     # --- CUERPO PRINCIPAL ---
     t1, t2, t3 = st.tabs(["📊 Dashboard Vertimientos", "🧪 Agua Tratada", "🛠️ Mantenimiento"])
 
     with t1:
         if not df_filtrado.empty:
-            # --- MÉTRICAS CON SEMÁFORO ---
             m1, m2, m3, m4 = st.columns(4)
-            
             avg_ph = df_filtrado['ph'].mean()
             avg_temp = df_filtrado['temp'].mean()
             avg_sst = df_filtrado['sst'].mean()
 
-            # Semáforo pH (Norma: 6.0 - 9.0)
-            status_ph = "normal" if 6.0 <= avg_ph <= 9.0 else "inverse"
-            m1.metric("Promedio pH", f"{avg_ph:.2f}", 
-                      delta="EN NORMA" if status_ph == "normal" else "FUERA DE RANGO",
-                      delta_color=status_ph)
-
-            # Semáforo Temperatura (Límite: 40°C)
-            status_temp = "normal" if avg_temp <= 40 else "inverse"
-            m2.metric("Temp Promedio", f"{avg_temp:.1f} °C",
-                      delta="ESTABLE" if status_temp == "normal" else "ELEVADA",
-                      delta_color=status_temp)
-
-            # Semáforo SST
-            status_sst = "normal" if avg_sst <= 50 else "inverse"
-            m3.metric("SST Promedio", f"{avg_sst:.2f}",
-                      delta="ÓPTIMO" if status_sst == "normal" else "CRÍTICO",
-                      delta_color=status_sst)
-
+            m1.metric("Promedio pH", f"{avg_ph:.2f}", delta="EN NORMA" if 6.0 <= avg_ph <= 9.0 else "FUERA DE RANGO")
+            m2.metric("Temp Promedio", f"{avg_temp:.1f} °C")
+            m3.metric("SST Promedio", f"{avg_sst:.2f}")
             m4.metric("Total Registros", len(df_filtrado))
 
-            # --- GRÁFICAS ---
             st.subheader("📈 Análisis de pH")
-            fig_t = px.line(df_filtrado.sort_values('fecha'), x='fecha', y='ph', markers=True, title="Evolución Histórica de pH")
-            fig_t.add_hline(y=9.0, line_dash="dash", line_color="red")
-            fig_t.add_hline(y=6.0, line_dash="dash", line_color="red")
+            fig_t = px.line(df_filtrado.sort_values('fecha'), x='fecha', y='ph', markers=True)
             st.plotly_chart(fig_t, use_container_width=True)
-
-            # Gráfica de puntos por proceso
-            df_p = df_filtrado.groupby('proceso')['ph'].mean().reset_index()
-            fig_p = px.scatter(df_p, x='proceso', y='ph', color='ph', 
-                               color_continuous_scale='RdYlGn_r', range_color=[5, 10], size=[15]*len(df_p),
-                               title="Promedio de pH por Etapa")
-            fig_p.update_traces(mode='lines+markers', line_color='lightgrey')
-            st.plotly_chart(fig_p, use_container_width=True)
-
-            # SST y Temperatura
-            col_a, col_b = st.columns(2)
-            with col_a:
-                st.subheader("📊 Sólidos (SST)")
-                df_s = df_filtrado.groupby('proceso')['sst'].mean().reset_index()
-                fig_s = px.bar(df_s, x='proceso', y='sst', color='sst', title="Promedio SST por Etapa")
-                st.plotly_chart(fig_s, use_container_width=True)
-
-            with col_b:
-                st.subheader("🌡️ Temperatura")
-                df_temp_plot = df_filtrado.groupby('proceso')['temp'].mean().reset_index()
-                fig_temp = px.line(df_temp_plot, x='proceso', y='temp', markers=True, title="Temperatura por Etapa")
-                st.plotly_chart(fig_temp, use_container_width=True)
-
+            
             st.subheader("📋 Detalle de Datos")
             st.dataframe(df_filtrado, use_container_width=True)
         else:
@@ -137,8 +94,19 @@ try:
 
     with t2:
         st.info("Módulo de Agua Tratada en desarrollo.")
+
     with t3:
-        st.info("Módulo de Mantenimiento en desarrollo.")
+        st.subheader("🛠️ Registro de Actividades de Mantenimiento")
+        if df_manto is not None and not df_manto.empty:
+            st.write("A continuación se muestran los reportes de mantenimiento realizados:")
+            st.dataframe(df_manto, use_container_width=True)
+            
+            # Un pequeño extra: Conteo por tipo de equipo/tarea si existe la columna
+            if 'Equipo' in df_manto.columns:
+                fig_manto = px.pie(df_manto, names='Equipo', title="Distribución de Mantenimiento por Equipo")
+                st.plotly_chart(fig_manto, use_container_width=True)
+        else:
+            st.warning("No se encontraron datos en la pestaña de mantenimiento.")
 
 except Exception as e:
-    st.error(f"Se detectó un error en la aplicación: {e}")
+    st.error(f"Se detectó un error: {e}")
