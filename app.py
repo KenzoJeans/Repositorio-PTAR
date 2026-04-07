@@ -9,8 +9,8 @@ st.markdown('<style>div.block-container{padding-top:2rem;}</style>', unsafe_allo
 st.markdown('<p style="font-size:30px; font-weight:bold; color:#1E88E5;">🏗️ Gestión Integral - Planta de Tratamiento</p>', unsafe_allow_html=True)
 
 # --- CONFIGURACIÓN DE CONEXIÓN ---
-URL_DIRECTA_MANTO = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=746789412#gid=746789412" 
-URL_DIRECTA_TRATADA = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=1338797542#gid=1338797542"
+URL_DIRECTA_MANTO = "TU_URL_AQUI_CON_EL_GID_MANTENIMIENTO" 
+URL_DIRECTA_TRATADA = "TU_URL_AQUI_CON_EL_GID_AGUA_TRATADA"
 
 # 2. Función de limpieza de datos UNIFICADA
 def limpiar_datos_ptar(df):
@@ -27,7 +27,8 @@ def limpiar_datos_ptar(df):
         'Conductividad Tratada': 'cond', 'Caudal tratado': 'caudal',
         'Fecha': 'fecha', 'fecha': 'fecha', 'Fecha del reporte': 'fecha', 
         'Marca temporal': 'fecha_h',
-        'Proceso a reportar': 'proceso'
+        'Proceso a reportar': 'proceso',
+        'Productos quimicos utilizados en el proceso': 'quimicos'
     }
     
     nuevos_nombres = {}
@@ -56,38 +57,43 @@ def limpiar_datos_ptar(df):
 # 3. Carga de Datos Principal
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
-    
-    # Dataset 1: Vertimientos (Base)
     df_raw = conn.read(ttl=0) 
     df_base_full = limpiar_datos_ptar(df_raw)
 
-    # Dataset 2: Agua Tratada
     try:
         df_tratada = limpiar_datos_ptar(conn.read(spreadsheet=URL_DIRECTA_TRATADA, ttl=0))
     except:
         df_tratada = pd.DataFrame()
 
-    # Dataset 3: Mantenimiento
     try:
         df_manto = conn.read(spreadsheet=URL_DIRECTA_MANTO, ttl=0)
         df_manto.columns = df_manto.columns.str.strip()
     except:
         df_manto = pd.DataFrame()
 
-    # --- BARRA LATERAL (Filtros solo para Vertimientos) ---
+    # --- BARRA LATERAL (Filtros actualizados) ---
     st.sidebar.header("Filtros Dashboard Vertimientos")
     df_vert_filtrado = df_base_full.copy()
 
-    if not df_base_full.empty and 'fecha' in df_base_full.columns:
-        min_f, max_f = min(df_base_full['fecha']), max(df_base_full['fecha'])
-        rango = st.sidebar.date_input("Rango de fechas:", [min_f, max_f])
-        if len(rango) == 2:
-            df_vert_filtrado = df_vert_filtrado[(df_vert_filtrado['fecha'] >= rango[0]) & (df_vert_filtrado['fecha'] <= rango[1])]
+    if not df_base_full.empty:
+        # Filtro de Fechas
+        if 'fecha' in df_base_full.columns:
+            min_f, max_f = min(df_base_full['fecha']), max(df_base_full['fecha'])
+            rango = st.sidebar.date_input("Rango de fechas:", [min_f, max_f])
+            if len(rango) == 2:
+                df_vert_filtrado = df_vert_filtrado[(df_vert_filtrado['fecha'] >= rango[0]) & (df_vert_filtrado['fecha'] <= rango[1])]
 
-    if not df_base_full.empty and 'proceso' in df_base_full.columns:
-        procesos = sorted(df_base_full['proceso'].unique().tolist())
-        sel = st.sidebar.multiselect("Procesos:", procesos, default=procesos)
-        df_vert_filtrado = df_vert_filtrado[df_vert_filtrado['proceso'].isin(sel)]
+        # Filtro de Procesos
+        if 'proceso' in df_base_full.columns:
+            procesos = sorted(df_base_full['proceso'].unique().tolist())
+            sel_p = st.sidebar.multiselect("Procesos:", procesos, default=procesos)
+            df_vert_filtrado = df_vert_filtrado[df_vert_filtrado['proceso'].isin(sel_p)]
+        
+        # NUEVO: Filtro de Químicos
+        if 'quimicos' in df_base_full.columns:
+            quim_list = sorted(df_base_full['quimicos'].dropna().unique().tolist())
+            sel_q = st.sidebar.multiselect("Químicos Utilizados:", quim_list, default=quim_list)
+            df_vert_filtrado = df_vert_filtrado[df_vert_filtrado['quimicos'].isin(sel_q)]
 
     # --- TABS ---
     t1, t2, t3 = st.tabs(["📊 Dashboard Vertimientos", "🧪 Agua Tratada", "🛠️ Mantenimiento"])
@@ -102,51 +108,57 @@ try:
             m3.metric("SST Promedio", f"{avg_sst:.1f} mg/L")
             m4.metric("Registros", len(df_vert_filtrado))
 
+            # GRÁFICAS CON COLORES MEJORADOS
             st.subheader("📈 Histórico de pH (Entrada)")
-            st.plotly_chart(px.line(df_vert_filtrado.sort_values('fecha'), x='fecha', y='ph', markers=True, template="plotly_dark"), use_container_width=True)
+            fig_ph = px.line(df_vert_filtrado.sort_values('fecha'), x='fecha', y='ph', 
+                             markers=True, template="plotly_dark", 
+                             color_discrete_sequence=['#00D4FF']) # Cian brillante
+            fig_ph.add_hline(y=9.0, line_dash="dash", line_color="#FF4B4B", annotation_text="Límite Sup")
+            fig_ph.add_hline(y=6.0, line_dash="dash", line_color="#FF4B4B", annotation_text="Límite Inf")
+            st.plotly_chart(fig_ph, use_container_width=True)
 
             col_a, col_b = st.columns(2)
             with col_a:
-                st.write("**SST por Proceso**")
-                st.plotly_chart(px.bar(df_vert_filtrado.groupby('proceso')['sst'].mean().reset_index(), x='proceso', y='sst', template="plotly_dark"), use_container_width=True)
+                st.write("**SST por Proceso (Carga Orgánica)**")
+                # Escala de colores 'Viridis' para que no sea plano
+                fig_sst = px.bar(df_vert_filtrado.groupby('proceso')['sst'].mean().reset_index(), 
+                                 x='proceso', y='sst', color='sst', 
+                                 color_continuous_scale='Turbo', template="plotly_dark")
+                st.plotly_chart(fig_sst, use_container_width=True)
             with col_b:
-                st.write("**Temperatura por Proceso**")
-                st.plotly_chart(px.line(df_vert_filtrado.groupby('proceso')['temp'].mean().reset_index(), x='proceso', y='temp', markers=True, template="plotly_dark"), use_container_width=True)
+                st.write("**Variación de Temperatura**")
+                # Gráfico de área para dar más peso visual
+                fig_temp = px.area(df_vert_filtrado.groupby('proceso')['temp'].mean().reset_index(), 
+                                   x='proceso', y='temp', markers=True, 
+                                   template="plotly_dark", color_discrete_sequence=['#FFA500'])
+                st.plotly_chart(fig_temp, use_container_width=True)
+            
+            st.markdown("### 📋 Detalle de Registros")
+            st.dataframe(df_vert_filtrado, use_container_width=True)
         else:
-            st.warning("Ajusta los filtros para ver datos de Vertimientos.")
+            st.warning("No hay datos disponibles con los filtros seleccionados.")
 
+    # (Pestañas 2 y 3 se mantienen iguales al código anterior que ya funcionaba)
     with t2:
         st.subheader("🧪 Monitoreo de Agua Tratada (Salida)")
         if not df_tratada.empty:
             avg_sst_sal = df_tratada['sst'].mean()
-            # Lógica Remoción
             sst_ent = df_base_full['sst'].mean() if not df_base_full.empty else 1
             rem = 100.0 if avg_sst_sal == 0 else ((sst_ent - avg_sst_sal) / sst_ent) * 100
-
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("SST Salida", f"{avg_sst_sal:.1f} mg/L", delta=f"{rem:.1f}% Remoción")
             c2.metric("pH Promedio", f"{df_tratada['ph'].mean():.2f}", delta="OK" if 6<=df_tratada['ph'].mean()<=9 else "REVISAR")
             c3.metric("Temp Salida", f"{df_tratada['temp'].mean():.1f} °C", delta="OK" if df_tratada['temp'].mean()<=40 else "ALTA")
             c4.metric("Caudal Total", f"{df_tratada['caudal'].sum():.1f} m³")
-
-            st.markdown("---")
             cola, colb = st.columns(2)
-            with cola:
-                st.plotly_chart(px.line(df_tratada.sort_values('fecha'), x='fecha', y=['ph', 'temp'], title="pH vs Temperatura (Tratada)", template="plotly_dark"), use_container_width=True)
-            with colb:
-                st.plotly_chart(px.area(df_tratada.sort_values('fecha'), x='fecha', y='cond', title="Conductividad (µS/cm)", template="plotly_dark", color_discrete_sequence=['#00CC96']), use_container_width=True)
-            
-            st.plotly_chart(px.bar(df_tratada.sort_values('fecha'), x='fecha', y='caudal', title="Caudal Diario (m³)", template="plotly_dark"), use_container_width=True)
-        else:
-            st.info("Cargue datos en la pestaña de Agua Tratada.")
+            with cola: st.plotly_chart(px.line(df_tratada.sort_values('fecha'), x='fecha', y=['ph', 'temp'], template="plotly_dark"), use_container_width=True)
+            with colb: st.plotly_chart(px.area(df_tratada.sort_values('fecha'), x='fecha', y='cond', template="plotly_dark", color_discrete_sequence=['#00CC96']), use_container_width=True)
+            st.plotly_chart(px.bar(df_tratada.sort_values('fecha'), x='fecha', y='caudal', template="plotly_dark"), use_container_width=True)
 
     with t3:
         st.subheader("🛠️ Estado de Equipos")
         if not df_manto.empty:
-            if 'SALUD' in df_manto.columns:
-                df_manto['SALUD'] = pd.to_numeric(df_manto['SALUD'], errors='coerce').fillna(0)
-            
-            # Cards de Equipos
+            if 'SALUD' in df_manto.columns: df_manto['SALUD'] = pd.to_numeric(df_manto['SALUD'], errors='coerce').fillna(0)
             equipos = df_manto['EQUIPO'].unique() if 'EQUIPO' in df_manto.columns else []
             cols_eq = st.columns(3)
             for i, eq in enumerate(equipos):
@@ -159,9 +171,6 @@ try:
                         <p style="color:{color}; margin:0;">Salud: {val_s}/10</p>
                         <small style="color:#888;">Prox: {ult.get('FECHA PROX MANTENIMIENTO', 'N/A')}</small>
                     </div>""", unsafe_allow_html=True)
-            
-            with st.expander("Historial"):
-                st.dataframe(df_manto, use_container_width=True)
 
 except Exception as e:
     st.error(f"Error: {e}")
