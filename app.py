@@ -9,8 +9,8 @@ st.markdown('<style>div.block-container{padding-top:2rem;}</style>', unsafe_allo
 st.markdown('<p style="font-size:30px; font-weight:bold; color:#1E88E5;">🏗️ Gestión Integral - Planta de Tratamiento</p>', unsafe_allow_html=True)
 
 # --- CONFIGURACIÓN DE CONEXIONES (REEMPLAZAR CON TUS URLS) ---
-URL_MANTO = "TU_URL_MANTENIMIENTO_CON_GID" 
-URL_TRATADA = "TU_URL_AGUA_TRATADA_CON_GID" 
+URL_MANTO = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=746789412#gid=746789412" 
+URL_TRATADA = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=1338797542#gid=1338797542" 
 
 # 2. Función de limpieza REFORZADA (Evita el error 'sst')
 def limpiar_datos_ptar(df):
