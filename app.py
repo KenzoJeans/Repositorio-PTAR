@@ -9,8 +9,8 @@ st.markdown('<style>div.block-container{padding-top:2rem;}</style>', unsafe_allo
 st.markdown('<p style="font-size:30px; font-weight:bold; color:#1E88E5;">🏗️ Gestión Integral - Planta de Tratamiento</p>', unsafe_allow_html=True)
 
 # --- CONFIGURACIÓN DE CONEXIÓN ---
-URL_DIRECTA_MANTO = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=746789412#gid=746789412" 
-URL_DIRECTA_TRATADA = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=1338797542#gid=1338797542"
+URL_DIRECTA_MANTO = "TU_URL_MANTENIMIENTO" 
+URL_DIRECTA_TRATADA = "TU_URL_AGUA_TRATADA"
 
 # 2. Función de limpieza de datos REFORZADA
 def limpiar_datos_ptar(df):
@@ -25,10 +25,12 @@ def limpiar_datos_ptar(df):
         'temp': 'temp', 'Temperatura': 'temp', 'Temperatura Tratada': 'temp',
         'sst': 'sst', 'SST': 'sst', 'SST Tratada': 'sst',
         'Conductividad Tratada': 'cond', 'Caudal tratado': 'caudal',
-        'Fecha': 'fecha', 'Marca temporal': 'fecha_h',
+        'Fecha': 'fecha', 'fecha': 'fecha', 'Fecha del reporte': 'fecha', 
+        'Marca temporal': 'fecha_h',
         'Proceso a reportar': 'proceso'
     }
     
+    # Renombrado seguro
     nuevos_nombres = {}
     for col in df.columns:
         if col in mapeo:
@@ -38,19 +40,26 @@ def limpiar_datos_ptar(df):
     
     df = df.rename(columns=nuevos_nombres)
 
-    columnas_num = ['ph', 'temp', 'sst', 'cond', 'caudal']
-    for col in columnas_num:
+    # 3. Blindaje contra errores de columnas faltantes ('sst', 'fecha', etc)
+    columnas_requeridas = ['ph', 'temp', 'sst', 'cond', 'caudal']
+    for col in columnas_requeridas:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
         else:
             df[col] = 0.0
-    
-    if 'fecha' in df.columns:
+
+    # Lógica para la fecha: si no hay 'fecha', intenta usar 'fecha_h' (Marca temporal)
+    if 'fecha' not in df.columns and 'fecha_h' in df.columns:
+        df['fecha'] = pd.to_datetime(df['fecha_h'], errors='coerce').dt.date
+    elif 'fecha' in df.columns:
         df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce').dt.date
+    else:
+        # Si no hay nada, pone la fecha de hoy para no romper la gráfica
+        df['fecha'] = pd.Timestamp.now().date()
     
     return df
 
-# 3. Carga de Datos
+# 3. Conexión y Carga
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
     df_base = limpiar_datos_ptar(conn.read(ttl=0))
@@ -80,50 +89,48 @@ try:
     with t2:
         st.subheader("🧪 Monitoreo de Agua Tratada (Salida)")
         if not df_tratada.empty:
-            # Cálculos de métricas
+            # Métricas
             sst_ent = df_base['sst'].mean() if not df_base.empty else 0
             sst_sal = df_tratada['sst'].mean()
             remocion = ((sst_ent - sst_sal) / sst_ent) * 100 if sst_ent > 0 else 0
 
-            # Fila de Métricas Principales
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("SST Salida", f"{sst_sal:.1f} mg/L", delta=f"{remocion:.1f}% Remoción")
             c2.metric("pH Promedio", f"{df_tratada['ph'].mean():.2f}")
             c3.metric("Temp. Promedio", f"{df_tratada['temp'].mean():.1f} °C")
             c4.metric("Caudal Total", f"{df_tratada['caudal'].sum():.1f} m³")
 
-            # Gráficas de Control Químico
             st.markdown("---")
-            col_left, col_right = st.columns(2)
+            col_a, col_b = st.columns(2)
             
-            with col_left:
-                st.write("**Control de pH y Temperatura**")
-                fig_ph_temp = px.line(df_tratada.sort_values('fecha'), x='fecha', y=['ph', 'temp'], 
-                                      markers=True, title="Tendencia pH vs Temperatura", template="plotly_dark")
-                st.plotly_chart(fig_ph_temp, use_container_width=True)
+            with col_a:
+                st.write("**Variables Críticas (pH y Temp)**")
+                # Graficamos pH y Temperatura que tienen escalas similares
+                fig_criticas = px.line(df_tratada.sort_values('fecha'), x='fecha', y=['ph', 'temp'], 
+                                       markers=True, title="Tendencia pH vs Temperatura", template="plotly_dark")
+                st.plotly_chart(fig_criticas, use_container_width=True)
 
-            with col_right:
-                st.write("**Control de Conductividad**")
+            with col_b:
+                st.write("**Conductividad**")
                 fig_cond = px.area(df_tratada.sort_values('fecha'), x='fecha', y='cond', 
-                                   title="Histórico de Conductividad (µS/cm)", template="plotly_dark", color_discrete_sequence=['#9C27B0'])
+                                   title="Conductividad (µS/cm)", template="plotly_dark", color_discrete_sequence=['#00CC96'])
                 st.plotly_chart(fig_cond, use_container_width=True)
 
-            # Sección de Caudal
             st.markdown("---")
-            st.write("**Análisis de Caudal Tratado**")
+            st.write("**Control de Caudal**")
             fig_caudal = px.bar(df_tratada.sort_values('fecha'), x='fecha', y='caudal', 
-                                title="Volumen Tratado por Día (m³)", template="plotly_dark", color='caudal')
+                                title="Volumen Tratado (m³)", template="plotly_dark", color='caudal', color_continuous_scale='Blues')
             st.plotly_chart(fig_caudal, use_container_width=True)
             
             with st.expander("Ver tabla de datos detallada"):
                 st.dataframe(df_tratada, use_container_width=True)
         else:
-            st.info("No hay registros en Agua Tratada para graficar.")
+            st.info("No hay registros en Agua Tratada para mostrar gráficas.")
 
     with t3:
+        # (Lógica de mantenimiento se mantiene igual)
         if not df_manto.empty:
             st.subheader("Panel de Equipos")
-            # Mantenemos tu lógica de tarjetas aquí...
             st.dataframe(df_manto, use_container_width=True)
 
 except Exception as e:
