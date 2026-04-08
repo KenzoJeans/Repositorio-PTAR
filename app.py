@@ -168,7 +168,7 @@ try:
         STOCK_INICIAL = {
             "SULFATO DE ALUMINIO": 119, 
             "CAL": 79,                  
-            "POLIMERO": 50               
+            "POLIMERO": 23.5               
         }
 
         if not df_kardex.empty:
