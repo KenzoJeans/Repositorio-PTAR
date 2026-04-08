@@ -162,25 +162,49 @@ try:
                 st.dataframe(df_manto, use_container_width=True)
 
     with t4:
-        st.subheader("📦 Control de Inventario - Kardex")
+        st.subheader("📦 Control de Inventario por Producto")
         if not df_kardex.empty:
             df_kardex.columns = df_kardex.columns.str.strip()
             df_kardex['CANTIDAD'] = pd.to_numeric(df_kardex['CANTIDAD'], errors='coerce').fillna(0)
 
-            col1, col2, col3 = st.columns(3)
-            tot_entradas = df_kardex[df_kardex['QUE PROCESO VA A REALIZAR'] == 'ENTRADA']['CANTIDAD'].sum()
-            tot_salidas = df_kardex[df_kardex['QUE PROCESO VA A REALIZAR'] == 'SALIDA']['CANTIDAD'].sum()
-            stock_actual = tot_entradas - tot_salidas
+            # --- LÓGICA DE OPERACIÓN INDEPENDIENTE ---
+            # Creamos una columna auxiliar: si es SALIDA, el número se vuelve negativo
+            df_kardex['valor_neto'] = df_kardex.apply(
+                lambda x: x['CANTIDAD'] if x['QUE PROCESO VA A REALIZAR'] == 'ENTRADA' else -x['CANTIDAD'], 
+                axis=1
+            )
 
-            col1.metric("Entradas Totales", f"{tot_entradas} kilogramos")
-            col2.metric("Salidas Totales", f"{tot_salidas} kilogramos")
-            col3.metric("Existencias en Planta", f"{stock_actual} kilogramos")
+            # Agrupamos por producto para obtener el stock real de cada uno
+            resumen_stock = df_kardex.groupby('NOMBRE DEL QUIMICO')['valor_neto'].sum().reset_index()
+            resumen_stock.columns = ['Producto', 'Stock Actual']
+
+            # Visualización en tarjetas dinámicas
+            st.write("### Existencias actuales")
+            cols = st.columns(len(resumen_stock)) if len(resumen_stock) > 0 else st.columns(1)
+            
+            for i, row in resumen_stock.iterrows():
+                with cols[i % len(cols)]:
+                    st.metric(
+                        label=f"Stock: {row['Producto']}", 
+                        value=f"{row['Stock Actual']} unidades"
+                    )
 
             st.markdown("---")
-            st.write("**Vista de Movimientos Recientes**")
-            st.dataframe(df_kardex, use_container_width=True)
-        else:
-            st.warning("La pestaña 'kardex' está vacía o no se ha podido leer aún.")
+            
+            # Gráfica para comparar stocks rápidamente
+            fig_stock = px.bar(
+                resumen_stock, 
+                x='Producto', 
+                y='Stock Actual', 
+                color='Producto',
+                title="Comparativa de Inventario en Planta",
+                template="plotly_dark"
+            )
+            st.plotly_chart(fig_stock, use_container_width=True)
 
+            st.write("**Historial de Movimientos**")
+            st.dataframe(df_kardex[['FECHA', 'OPERARIO', 'QUE PROCESO VA A REALIZAR', 'NOMBRE DEL QUIMICO', 'CANTIDAD']], use_container_width=True)
+        else:
+            st.warning("No hay datos en el Kardex.")
 except Exception as e:
     st.error(f"Error: {e}")
