@@ -172,9 +172,9 @@ try:
             tot_salidas = df_kardex[df_kardex['QUE PROCESO VA A REALIZAR'] == 'SALIDA']['CANTIDAD'].sum()
             stock_actual = tot_entradas - tot_salidas
 
-            col1.metric("Entradas Totales", f"{tot_entradas} unidades")
-            col2.metric("Salidas Totales", f"{tot_salidas} unidades")
-            col3.metric("Existencias en Planta", f"{stock_actual} unidades")
+            col1.metric("Entradas Totales", f"{tot_entradas} kilogramos")
+            col2.metric("Salidas Totales", f"{tot_salidas} kilogramos")
+            col3.metric("Existencias en Planta", f"{stock_actual} kilogramos")
 
             st.markdown("---")
             st.write("**Vista de Movimientos Recientes**")
