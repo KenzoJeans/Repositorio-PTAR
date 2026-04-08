@@ -163,48 +163,74 @@ try:
 
     with t4:
         st.subheader("📦 Control de Inventario por Producto")
+        
+        # --- CONFIGURACIÓN DE STOCK INICIAL ---
+        # Puedes ajustar estos valores según lo que tengas físicamente hoy
+        STOCK_INICIAL = {
+            "SULFATO DE ALUMINIO": 119,  # Ejemplo: inicias con 500 kg
+            "CAL": 79,                  # Ejemplo: inicias con 100 kg
+            "POLIMERO": 50               # Puedes agregar los que necesites
+        }
+
         if not df_kardex.empty:
             df_kardex.columns = df_kardex.columns.str.strip()
             df_kardex['CANTIDAD'] = pd.to_numeric(df_kardex['CANTIDAD'], errors='coerce').fillna(0)
 
-            # --- LÓGICA DE OPERACIÓN INDEPENDIENTE ---
-            # Creamos una columna auxiliar: si es SALIDA, el número se vuelve negativo
+            # 1. Calculamos el balance neto de los movimientos del Sheets (Entradas - Salidas)
             df_kardex['valor_neto'] = df_kardex.apply(
                 lambda x: x['CANTIDAD'] if x['QUE PROCESO VA A REALIZAR'] == 'ENTRADA' else -x['CANTIDAD'], 
                 axis=1
             )
-
-            # Agrupamos por producto para obtener el stock real de cada uno
-            resumen_stock = df_kardex.groupby('NOMBRE DEL QUIMICO')['valor_neto'].sum().reset_index()
-            resumen_stock.columns = ['Producto', 'Stock Actual']
-
-            # Visualización en tarjetas dinámicas
-            st.write("### Existencias actuales")
-            cols = st.columns(len(resumen_stock)) if len(resumen_stock) > 0 else st.columns(1)
             
+            # 2. Agrupamos movimientos por producto
+            movimientos = df_kardex.groupby('NOMBRE DEL QUIMICO')['valor_neto'].sum().to_dict()
+
+            # 3. Consolidamos Stock Inicial + Movimientos
+            # Usamos todos los nombres de químicos que existan tanto en el stock inicial como en el Sheets
+            todos_los_quimicos = set(list(STOCK_INICIAL.keys()) + list(movimientos.keys()))
+            
+            data_final = []
+            for q in todos_los_quimicos:
+                inicial = STOCK_INICIAL.get(q, 0)
+                movs = movimientos.get(q, 0)
+                data_final.append({"Producto": q, "Stock Actual": inicial + movs})
+
+            resumen_stock = pd.DataFrame(data_final)
+
+            # --- VISUALIZACIÓN ---
+            st.write("### Existencias Reales (Inicial + Movimientos)")
+            cols = st.columns(len(resumen_stock))
             for i, row in resumen_stock.iterrows():
-                with cols[i % len(cols)]:
+                with cols[i]:
+                    # Mostramos el stock con un color si está bajo (ej. menos de 20)
+                    delta_label = "Stock Inicial aplicado" if row['Producto'] in STOCK_INICIAL else "Sin stock inicial"
                     st.metric(
-                        label=f"Stock: {row['Producto']}", 
-                        value=f"{row['Stock Actual']} unidades"
+                        label=row['Producto'], 
+                        value=f"{row['Stock Actual']} unidades",
+                        delta=delta_label,
+                        delta_color="off"
                     )
 
             st.markdown("---")
             
-            # Gráfica para comparar stocks rápidamente
+            # Gráfica de barras para ver el inventario
             fig_stock = px.bar(
                 resumen_stock, 
                 x='Producto', 
                 y='Stock Actual', 
                 color='Producto',
-                title="Comparativa de Inventario en Planta",
+                text_auto=True,
+                title="Balance de Inventario en Planta",
                 template="plotly_dark"
             )
             st.plotly_chart(fig_stock, use_container_width=True)
 
-            st.write("**Historial de Movimientos**")
-            st.dataframe(df_kardex[['FECHA', 'OPERARIO', 'QUE PROCESO VA A REALIZAR', 'NOMBRE DEL QUIMICO', 'CANTIDAD']], use_container_width=True)
+            with st.expander("Ver Historial Detallado"):
+                st.dataframe(df_kardex[['FECHA', 'OPERARIO', 'QUE PROCESO VA A REALIZAR', 'NOMBRE DEL QUIMICO', 'CANTIDAD']], use_container_width=True)
         else:
-            st.warning("No hay datos en el Kardex.")
+            st.warning("No hay movimientos registrados en el Kardex. Mostrando solo Stock Inicial.")
+            # Si el Sheets está vacío, podrías mostrar solo lo que hay en STOCK_INICIAL
+            for prod, cant in STOCK_INICIAL.items():
+                st.info(f"{prod}: {cant} unidades (Stock Inicial)")
 except Exception as e:
     st.error(f"Error: {e}")
