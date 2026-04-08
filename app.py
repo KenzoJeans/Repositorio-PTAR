@@ -145,6 +145,7 @@ try:
         else:
             st.warning("No hay datos de mantenimiento.")
 
+    
     with t4:
         st.subheader("📦 Control de Inventario y Consumo")
         
@@ -155,30 +156,45 @@ try:
         }
 
         if not df_kardex.empty:
+            # Limpieza profunda de nombres de columnas y datos
             df_kardex.columns = df_kardex.columns.str.strip()
             df_kardex['CANTIDAD'] = pd.to_numeric(df_kardex['CANTIDAD'], errors='coerce').fillna(0)
+            
+            # --- CORRECCIÓN DE ERROR DE FECHA ---
+            # Convertimos a datetime y eliminamos las filas que no tengan fecha válida para evitar el error de float
             df_kardex['fecha_dt'] = pd.to_datetime(df_kardex['FECHA'], errors='coerce').dt.date
+            df_kardex = df_kardex.dropna(subset=['fecha_dt'])
 
             # --- FILTRO DE CONSUMO POR RANGO ---
             st.write("### 📅 Consumo en Periodo")
-            f_rango = st.date_input("Selecciona rango de consumo:", [df_kardex['fecha_dt'].min(), df_kardex['fecha_dt'].max()], key="kardex_date")
             
-            if len(f_rango) == 2:
-                # Filtrar solo salidas en el rango seleccionado
-                df_salidas = df_kardex[(df_kardex['QUE PROCESO VA A REALIZAR'] == 'SALIDA') & 
-                                       (df_kardex['fecha_dt'] >= f_rango[0]) & 
-                                       (df_kardex['fecha_dt'] <= f_rango[1])]
+            # Verificamos que existan fechas válidas para el selector
+            if not df_kardex.empty:
+                f_min, f_max = df_kardex['fecha_dt'].min(), df_kardex['fecha_dt'].max()
+                f_rango = st.date_input("Selecciona rango de consumo:", [f_min, f_max], key="kardex_date")
                 
-                sum_salidas = df_salidas.groupby('NOMBRE DEL QUIMICO')['CANTIDAD'].sum().to_dict()
-                c_cons = st.columns(len(STOCK_INICIAL))
-                for i, prod in enumerate(STOCK_INICIAL.keys()):
-                    with c_cons[i % len(c_cons)]:
-                        st.metric(f"Salidas: {prod}", f"{sum_salidas.get(prod, 0)} kg")
+                if len(f_rango) == 2:
+                    # Filtramos salidas usando las fechas limpias
+                    mask_rango = (df_kardex['QUE PROCESO VA A REALIZAR'] == 'SALIDA') & \
+                                 (df_kardex['fecha_dt'] >= f_rango[0]) & \
+                                 (df_kardex['fecha_dt'] <= f_rango[1])
+                    
+                    df_salidas = df_kardex[mask_rango]
+                    sum_salidas = df_salidas.groupby('NOMBRE DEL QUIMICO')['CANTIDAD'].sum().to_dict()
+                    
+                    c_cons = st.columns(len(STOCK_INICIAL))
+                    for i, prod in enumerate(STOCK_INICIAL.keys()):
+                        with c_cons[i % len(c_cons)]:
+                            st.metric(f"Salidas: {prod}", f"{sum_salidas.get(prod, 0)} kg")
 
             st.markdown("---")
 
             # --- STOCK ACTUAL (REAL) ---
-            df_kardex['neto'] = df_kardex.apply(lambda x: x['CANTIDAD'] if x['QUE PROCESO VA A REALIZAR'] == 'ENTRADA' else -x['CANTIDAD'], axis=1)
+            # Esta parte usa todo el historial, no se ve afectada por el filtro de arriba
+            df_kardex['neto'] = df_kardex.apply(
+                lambda x: x['CANTIDAD'] if x['QUE PROCESO VA A REALIZAR'] == 'ENTRADA' else -x['CANTIDAD'], 
+                axis=1
+            )
             movs = df_kardex.groupby('NOMBRE DEL QUIMICO')['neto'].sum().to_dict()
             
             st.write("### 🔋 Existencias Actuales")
@@ -186,11 +202,25 @@ try:
             for i, (prod, inicial) in enumerate(STOCK_INICIAL.items()):
                 actual = inicial + movs.get(prod, 0)
                 with cols_s[i % len(cols_s)]:
-                    st.metric(prod, f"{actual} kg", delta="Bajo" if actual < 20 else "OK", delta_color="inverse" if actual < 20 else "normal")
+                    # Alerta si queda menos del 20% del stock inicial o menos de 20kg
+                    alerta = actual < 20
+                    st.metric(
+                        label=prod, 
+                        value=f"{actual} kg", 
+                        delta="⚠️ REABASTECER" if alerta else "STOCK OK", 
+                        delta_color="inverse" if alerta else "normal"
+                    )
 
-            st.plotly_chart(px.bar(df_kardex, x='NOMBRE DEL QUIMICO', y='neto', title="Movimientos Netos"), use_container_width=True)
+            # Gráfica comparativa
+            resumen_grafica = pd.DataFrame([
+                {"Producto": p, "Stock": STOCK_INICIAL[p] + movs.get(p, 0)} for p in STOCK_INICIAL
+            ])
+            st.plotly_chart(px.bar(resumen_grafica, x='Producto', y='Stock', color='Producto', template="plotly_dark"), use_container_width=True)
+            
+            with st.expander("Ver Historial de Movimientos"):
+                st.dataframe(df_kardex[['FECHA', 'OPERARIO', 'QUE PROCESO VA A REALIZAR', 'NOMBRE DEL QUIMICO', 'CANTIDAD']], use_container_width=True)
         else:
-            st.info("No hay datos en Kardex.")
+            st.info("No hay datos registrados en la hoja de Kardex.")
 
 except Exception as e:
     st.error(f"Se detectó un error en la aplicación: {e}")
