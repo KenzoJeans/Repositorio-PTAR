@@ -158,24 +158,33 @@ try:
             with st.expander("Historial"):
                 st.dataframe(df_manto, use_container_width=True)
 
-    with t4:
-        st.subheader("🧪 Reporte de Consumo de Químicos")
-        # Usamos df_raw (la hoja principal) que suele tener la columna de químicos
-        if not df_base_full.empty and 'quimicos' in df_base_full.columns:
-            # Filtro rápido de texto para químicos
-            q_search = st.text_input("Buscar químico específico:", "")
-            df_q = df_base_full.copy()
-            if q_search:
-                df_q = df_q[df_q['quimicos'].str.contains(q_search, case=False, na=False)]
-            
-            # Gráfica de uso por proceso
-            fig_q = px.sunburst(df_q, path=['proceso', 'quimicos'], title="Distribución de Químicos por Etapa", template="plotly_dark")
-            st.plotly_chart(fig_q, use_container_width=True)
-            
-            st.markdown("### Listado Detallado de Consumos")
-            st.dataframe(df_q[['fecha', 'proceso', 'quimicos']], use_container_width=True)
-        else:
-            st.info("No se detectó la columna 'Productos quimicos utilizados en el proceso' en la base de datos.")
+   with t4:
+    st.subheader("📦 Control de Inventario - Kardex")
+    if not df_kardex.empty:
+        # Aseguramos que los nombres coincidan con tu imagen
+        df_kardex.columns = df_kardex.columns.str.strip()
+        
+        # Convertir cantidades a números por si acaso
+        df_kardex['CANTIDAD'] = pd.to_numeric(df_kardex['CANTIDAD'], errors='coerce').fillna(0)
+
+        # Resumen de Stock
+        col1, col2, col3 = st.columns(3)
+        # Filtramos exactamente como aparece en tu captura: ENTRADA y SALIDA
+        tot_entradas = df_kardex[df_kardex['QUE PROCESO VA A REALIZAR'] == 'ENTRADA']['CANTIDAD'].sum()
+        tot_salidas = df_kardex[df_kardex['QUE PROCESO VA A REALIZAR'] == 'SALIDA']['CANTIDAD'].sum()
+        stock_actual = tot_entradas - tot_salidas
+
+        col1.metric("Entradas Totales", f"{tot_entradas} unidades")
+        col2.metric("Salidas Totales", f"{tot_salidas} unidades")
+        col3.metric("Existencias en Planta", f"{stock_actual} unidades", 
+                    delta=None, delta_color="normal")
+
+        st.markdown("---")
+        st.write("**Vista de Movimientos Recientes**")
+        # Mostramos la tabla tal cual se ve en tu Sheets
+        st.dataframe(df_kardex.sort_values(by='FECHA', ascending=False), use_container_width=True)
+    else:
+        st.warning("La pestaña 'kardex' está vacía o no se ha podido leer aún.")
 
 except Exception as e:
     st.error(f"Error: {e}")
