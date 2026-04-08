@@ -161,31 +161,65 @@ try:
             with st.expander("Historial"):
                 st.dataframe(df_manto, use_container_width=True)
 
-    with t4:
+   with t4:
         st.subheader("📦 Control de Inventario por Producto")
         
         # --- CONFIGURACIÓN DE STOCK INICIAL ---
         STOCK_INICIAL = {
             "SULFATO DE ALUMINIO": 119, 
             "CAL": 79,                  
-            "POLIFLOC": 23.5               
+            "POLIMERO": 50               
         }
 
         if not df_kardex.empty:
             df_kardex.columns = df_kardex.columns.str.strip()
             df_kardex['CANTIDAD'] = pd.to_numeric(df_kardex['CANTIDAD'], errors='coerce').fillna(0)
+            
+            # Asegurar que la fecha sea tipo date para filtrar
+            if 'FECHA' in df_kardex.columns:
+                df_kardex['FECHA_DT'] = pd.to_datetime(df_kardex['FECHA'], errors='coerce').dt.date
 
-            # 1. Calculamos balance neto (Entradas - Salidas)
+            # --- 1. FILTRO DE FECHAS PARA CONSUMO ---
+            st.write("### 📅 Resumen de Consumo por Fechas")
+            f_inicio, f_fin = st.date_input(
+                "Selecciona el rango para ver totales de salida:",
+                [df_kardex['FECHA_DT'].min(), df_kardex['FECHA_DT'].max()],
+                key="fecha_kardex"
+            )
+
+            # --- 2. CÁLCULO DE SALIDAS EN EL RANGO ---
+            mask_salidas = (
+                (df_kardex['QUE PROCESO VA A REALIZAR'] == 'SALIDA') & 
+                (df_kardex['FECHA_DT'] >= f_inicio) & 
+                (df_kardex['FECHA_DT'] <= f_fin)
+            )
+            df_solo_salidas = df_kardex[mask_salidas]
+            
+            # Tarjetas de Consumo (Salidas Totales)
+            consumo_por_producto = df_solo_salidas.groupby('NOMBRE DEL QUIMICO')['CANTIDAD'].sum()
+            
+            c_cons = st.columns(len(STOCK_INICIAL))
+            for i, (prod, stock_ini) in enumerate(STOCK_INICIAL.items()):
+                total_gastado = consumo_por_producto.get(prod, 0)
+                with c_cons[i % len(c_cons)]:
+                    st.metric(
+                        label=f"Consumo: {prod}", 
+                        value=f"{total_gastado} kilos",
+                        delta="Periodo seleccionado",
+                        delta_color="off"
+                    )
+
+            st.markdown("---")
+
+            # --- 3. CÁLCULO DE STOCK ACTUAL (IGUAL AL ANTERIOR) ---
             df_kardex['valor_neto'] = df_kardex.apply(
                 lambda x: x['CANTIDAD'] if x['QUE PROCESO VA A REALIZAR'] == 'ENTRADA' else -x['CANTIDAD'], 
                 axis=1
             )
             
-            # 2. Agrupamos por producto
             movimientos = df_kardex.groupby('NOMBRE DEL QUIMICO')['valor_neto'].sum().to_dict()
-
-            # 3. Consolidamos Stock Inicial + Movimientos
             todos_los_quimicos = set(list(STOCK_INICIAL.keys()) + list(movimientos.keys()))
+            
             data_final = []
             for q in todos_los_quimicos:
                 inicial = STOCK_INICIAL.get(q, 0)
@@ -194,23 +228,19 @@ try:
 
             resumen_stock = pd.DataFrame(data_final)
 
-            # --- VISUALIZACIÓN DE TARJETAS CON ALERTAS ---
-            st.write("### Existencias Reales")
+            # --- VISUALIZACIÓN DE EXISTENCIAS ACTUALES ---
+            st.write("### 🔋 Existencias Reales (Totales)")
             cols = st.columns(len(resumen_stock))
-            
-            # Definimos el límite para la alerta visual
             limite_critico = 20 
 
             for i, row in resumen_stock.iterrows():
                 with cols[i]:
                     stock_valor = row['Stock Actual']
-                    # Si el stock es menor al límite, mostramos alerta
                     is_low = stock_valor < limite_critico
-                    
                     st.metric(
                         label=row['Producto'], 
                         value=f"{stock_valor} kilos",
-                        delta="⚠️ SOLICITAR AL PROVEEDOR" if is_low else "BUEN STOCK",
+                        delta="⚠️ BAJO" if is_low else "OK",
                         delta_color="inverse" if is_low else "normal"
                     )
 
@@ -219,11 +249,8 @@ try:
             # Gráfica de barras
             fig_stock = px.bar(
                 resumen_stock, 
-                x='Producto', 
-                y='Stock Actual', 
-                color='Producto',
-                text_auto=True,
-                title="Balance de Inventario en Planta",
+                x='Producto', y='Stock Actual', color='Producto',
+                text_auto=True, title="Balance de Inventario en Planta",
                 template="plotly_dark"
             )
             st.plotly_chart(fig_stock, use_container_width=True)
