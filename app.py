@@ -201,6 +201,17 @@ try:
             st.write("### Existencias Reales (Inicial + Movimientos)")
             cols = st.columns(len(resumen_stock))
             for i, row in resumen_stock.iterrows():
+                # --- Lógica de Alerta ---
+            limite_critico = 20  # Define tu stock mínimo
+            is_low = row['Stock Actual'] < limite_critico
+            
+            with cols[i]:
+                st.metric(
+                    label=row['Producto'], 
+                    value=f"{row['Stock Actual']} kilos",
+                    delta="⚠️ REABASTECER" if is_low else "STOCK OK",
+                    delta_color="normal" if not is_low else "inverse"
+                )
                 with cols[i]:
                     # Mostramos el stock con un color si está bajo (ej. menos de 20)
                     delta_label = "Stock Inicial aplicado" if row['Producto'] in STOCK_INICIAL else "Sin stock inicial"
