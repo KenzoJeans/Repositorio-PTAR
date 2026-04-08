@@ -161,7 +161,7 @@ try:
             with st.expander("Historial"):
                 st.dataframe(df_manto, use_container_width=True)
 
-   with t4:
+       with t4:
         st.subheader("📦 Control de Inventario por Producto")
         
         # --- CONFIGURACIÓN DE STOCK INICIAL ---
