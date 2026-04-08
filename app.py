@@ -210,7 +210,7 @@ try:
                     st.metric(
                         label=row['Producto'], 
                         value=f"{stock_valor} kilos",
-                        delta="⚠️ REABASTECER" if is_low else "STOCK OK",
+                        delta="⚠️ SOLICITAR AL PROVEEDOR" if is_low else "BUEN STOCK",
                         delta_color="inverse" if is_low else "normal"
                     )
 
