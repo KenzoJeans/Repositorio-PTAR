@@ -231,6 +231,6 @@ try:
             st.warning("No hay movimientos registrados en el Kardex. Mostrando solo Stock Inicial.")
             # Si el Sheets está vacío, podrías mostrar solo lo que hay en STOCK_INICIAL
             for prod, cant in STOCK_INICIAL.items():
-                st.info(f"{prod}: {cant} unidades (Stock Inicial)")
+                st.info(f"{prod}: {cant} kilos (Stock Inicial)")
 except Exception as e:
     st.error(f"Error: {e}")
