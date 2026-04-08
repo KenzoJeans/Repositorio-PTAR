@@ -206,7 +206,7 @@ try:
                     delta_label = "Stock Inicial aplicado" if row['Producto'] in STOCK_INICIAL else "Sin stock inicial"
                     st.metric(
                         label=row['Producto'], 
-                        value=f"{row['Stock Actual']} unidades",
+                        value=f"{row['Stock Actual']} kilos",
                         delta=delta_label,
                         delta_color="off"
                     )
