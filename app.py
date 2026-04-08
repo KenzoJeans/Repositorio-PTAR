@@ -9,7 +9,6 @@ st.markdown('<style>div.block-container{padding-top:2rem;}</style>', unsafe_allo
 st.markdown('<p style="font-size:30px; font-weight:bold; color:#1E88E5;">🏗️ Gestión Integral - Planta de Tratamiento</p>', unsafe_allow_html=True)
 
 # --- CONFIGURACIÓN DE CONEXIÓN ---
-# AJUSTE 1: RECUERDA COMPLETAR ESTAS URLS
 URL_DIRECTA_MANTO = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=746789412#gid=746789412" 
 URL_DIRECTA_TRATADA = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=1338797542#gid=1338797542"
 
@@ -64,9 +63,9 @@ try:
 
     # Dataset 2: Agua Tratada
     try:
-        df_tratada_full = limpiar_datos_ptar(conn.read(spreadsheet=URL_DIRECTA_TRATADA, ttl=0))
+        df_tratada = limpiar_datos_ptar(conn.read(spreadsheet=URL_DIRECTA_TRATADA, ttl=0))
     except:
-        df_tratada_full = pd.DataFrame()
+        df_tratada = pd.DataFrame()
 
     # Dataset 3: Mantenimiento
     try:
@@ -75,28 +74,19 @@ try:
     except:
         df_manto = pd.DataFrame()
 
-    # --- AJUSTE 2: LOGO Y FILTROS CRUZADOS ---
-    try:
-        st.sidebar.image("logo-white-kenzo.png", use_container_width=True)
-    except:
-        st.sidebar.warning("Logo no encontrado")
-
-    st.sidebar.header("Filtros Globales")
+    # --- BARRA LATERAL (Filtros solo para Vertimientos) ---
+    st.sidebar.header("Filtros Dashboard Vertimientos")
     df_vert_filtrado = df_base_full.copy()
-    df_trat_filtrado = df_tratada_full.copy()
 
-    # Filtro de Fecha unificado para ambas tablas
     if not df_base_full.empty and 'fecha' in df_base_full.columns:
         min_f, max_f = min(df_base_full['fecha']), max(df_base_full['fecha'])
         rango = st.sidebar.date_input("Rango de fechas:", [min_f, max_f])
         if len(rango) == 2:
             df_vert_filtrado = df_vert_filtrado[(df_vert_filtrado['fecha'] >= rango[0]) & (df_vert_filtrado['fecha'] <= rango[1])]
-            if not df_trat_filtrado.empty:
-                df_trat_filtrado = df_trat_filtrado[(df_trat_filtrado['fecha'] >= rango[0]) & (df_trat_filtrado['fecha'] <= rango[1])]
 
     if not df_base_full.empty and 'proceso' in df_base_full.columns:
         procesos = sorted(df_base_full['proceso'].unique().tolist())
-        sel = st.sidebar.multiselect("Procesos (Entrada):", procesos, default=procesos)
+        sel = st.sidebar.multiselect("Procesos:", procesos, default=procesos)
         df_vert_filtrado = df_vert_filtrado[df_vert_filtrado['proceso'].isin(sel)]
 
     # --- TABS ---
@@ -107,13 +97,8 @@ try:
             m1, m2, m3, m4 = st.columns(4)
             avg_ph, avg_temp, avg_sst = df_vert_filtrado['ph'].mean(), df_vert_filtrado['temp'].mean(), df_vert_filtrado['sst'].mean()
 
-            # AJUSTE 3: SEMÁFOROS (delta_color)
-            m1.metric("Promedio pH", f"{avg_ph:.2f}", 
-                      delta="NORMA" if 6<=avg_ph<=9 else "ALERTA", 
-                      delta_color="normal" if 6<=avg_ph<=9 else "inverse")
-            m2.metric("Temp Promedio", f"{avg_temp:.1f} °C", 
-                      delta="NORMAL" if avg_temp<=40 else "ALTA",
-                      delta_color="normal" if avg_temp<=40 else "inverse")
+            m1.metric("Promedio pH", f"{avg_ph:.2f}", delta="NORMA" if 6<=avg_ph<=9 else "ALERTA")
+            m2.metric("Temp Promedio", f"{avg_temp:.1f} °C", delta="NORMAL" if avg_temp<=40 else "ALTA")
             m3.metric("SST Promedio", f"{avg_sst:.1f} mg/L")
             m4.metric("Registros", len(df_vert_filtrado))
 
@@ -132,32 +117,28 @@ try:
 
     with t2:
         st.subheader("🧪 Monitoreo de Agua Tratada (Salida)")
-        if not df_trat_filtrado.empty:
-            avg_sst_sal = df_trat_filtrado['sst'].mean()
-            # AJUSTE 4: REMOCIÓN DINÁMICA (basada en filtros actuales)
-            sst_ent_dinamico = df_vert_filtrado['sst'].mean() if not df_vert_filtrado.empty else 1
-            rem = 100.0 if avg_sst_sal == 0 else max(0, ((sst_ent_dinamico - avg_sst_sal) / sst_ent_dinamico) * 100)
+        if not df_tratada.empty:
+            avg_sst_sal = df_tratada['sst'].mean()
+            # Lógica Remoción
+            sst_ent = df_base_full['sst'].mean() if not df_base_full.empty else 1
+            rem = 100.0 if avg_sst_sal == 0 else ((sst_ent - avg_sst_sal) / sst_ent) * 100
 
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("SST Salida", f"{avg_sst_sal:.1f} mg/L", delta=f"{rem:.1f}% Remoción")
-            c2.metric("pH Promedio", f"{df_trat_filtrado['ph'].mean():.2f}", 
-                      delta="OK" if 6<=df_trat_filtrado['ph'].mean()<=9 else "REVISAR",
-                      delta_color="normal" if 6<=df_trat_filtrado['ph'].mean()<=9 else "inverse")
-            c3.metric("Temp Salida", f"{df_trat_filtrado['temp'].mean():.1f} °C", 
-                      delta="OK" if df_trat_filtrado['temp'].mean()<=40 else "ALTA",
-                      delta_color="normal" if df_trat_filtrado['temp'].mean()<=40 else "inverse")
-            c4.metric("Caudal Total", f"{df_trat_filtrado['caudal'].sum():.1f} m³")
+            c2.metric("pH Promedio", f"{df_tratada['ph'].mean():.2f}", delta="OK" if 6<=df_tratada['ph'].mean()<=9 else "REVISAR")
+            c3.metric("Temp Salida", f"{df_tratada['temp'].mean():.1f} °C", delta="OK" if df_tratada['temp'].mean()<=40 else "ALTA")
+            c4.metric("Caudal Total", f"{df_tratada['caudal'].sum():.1f} m³")
 
             st.markdown("---")
             cola, colb = st.columns(2)
             with cola:
-                st.plotly_chart(px.line(df_trat_filtrado.sort_values('fecha'), x='fecha', y=['ph', 'temp'], title="pH vs Temperatura (Tratada)", template="plotly_dark"), use_container_width=True)
+                st.plotly_chart(px.line(df_tratada.sort_values('fecha'), x='fecha', y=['ph', 'temp'], title="pH vs Temperatura (Tratada)", template="plotly_dark"), use_container_width=True)
             with colb:
-                st.plotly_chart(px.area(df_trat_filtrado.sort_values('fecha'), x='fecha', y='cond', title="Conductividad (µS/cm)", template="plotly_dark", color_discrete_sequence=['#00CC96']), use_container_width=True)
+                st.plotly_chart(px.area(df_tratada.sort_values('fecha'), x='fecha', y='cond', title="Conductividad (µS/cm)", template="plotly_dark", color_discrete_sequence=['#00CC96']), use_container_width=True)
             
-            st.plotly_chart(px.bar(df_trat_filtrado.sort_values('fecha'), x='fecha', y='caudal', title="Caudal Diario (m³)", template="plotly_dark"), use_container_width=True)
+            st.plotly_chart(px.bar(df_tratada.sort_values('fecha'), x='fecha', y='caudal', title="Caudal Diario (m³)", template="plotly_dark"), use_container_width=True)
         else:
-            st.info("No hay datos de Agua Tratada para este periodo.")
+            st.info("Cargue datos en la pestaña de Agua Tratada.")
 
     with t3:
         st.subheader("🛠️ Estado de Equipos")
@@ -165,6 +146,7 @@ try:
             if 'SALUD' in df_manto.columns:
                 df_manto['SALUD'] = pd.to_numeric(df_manto['SALUD'], errors='coerce').fillna(0)
             
+            # Cards de Equipos
             equipos = df_manto['EQUIPO'].unique() if 'EQUIPO' in df_manto.columns else []
             cols_eq = st.columns(3)
             for i, eq in enumerate(equipos):
