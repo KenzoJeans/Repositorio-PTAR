@@ -11,7 +11,7 @@ st.markdown('<p style="font-size:30px; font-weight:bold; color:#1E88E5;">🏗️
 # --- CONFIGURACIÓN DE CONEXIÓN ---
 URL_DIRECTA_MANTO = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=746789412#gid=746789412" 
 URL_DIRECTA_TRATADA = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=1338797542#gid=1338797542"
-# Sugerencia: Si tienes una pestaña específica para químicos, agrega su URL/GID aquí
+# URL de la pestaña Kardex
 URL_DIRECTA_QUIMICOS = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=170562532#gid=170562532"
 
 # 2. Función de limpieza de datos UNIFICADA
@@ -76,6 +76,12 @@ try:
     except:
         df_manto = pd.DataFrame()
 
+    # Dataset 4: Kardex (Químicos)
+    try:
+        df_kardex = conn.read(spreadsheet=URL_DIRECTA_QUIMICOS, ttl=0)
+    except:
+        df_kardex = pd.DataFrame()
+
     # --- BARRA LATERAL ---
     st.sidebar.header("Filtros Dashboard Vertimientos")
     df_vert_filtrado = df_base_full.copy()
@@ -91,11 +97,10 @@ try:
         sel = st.sidebar.multiselect("Procesos:", procesos, default=procesos)
         df_vert_filtrado = df_vert_filtrado[df_vert_filtrado['proceso'].isin(sel)]
 
-    # --- TABS (Agregamos la pestaña 4) ---
+    # --- TABS ---
     t1, t2, t3, t4 = st.tabs(["📊 Dashboard Vertimientos", "🧪 Agua Tratada", "🛠️ Mantenimiento", "🧪 Consumo Químicos"])
 
     with t1:
-        # (Se mantiene igual a tu código original)
         if not df_vert_filtrado.empty:
             m1, m2, m3, m4 = st.columns(4)
             avg_ph, avg_temp, avg_sst = df_vert_filtrado['ph'].mean(), df_vert_filtrado['temp'].mean(), df_vert_filtrado['sst'].mean()
@@ -116,7 +121,6 @@ try:
             st.warning("Ajusta los filtros para ver datos de Vertimientos.")
 
     with t2:
-        # (Se mantiene igual a tu código original)
         st.subheader("🧪 Monitoreo de Agua Tratada (Salida)")
         if not df_tratada.empty:
             avg_sst_sal = df_tratada['sst'].mean()
@@ -138,7 +142,6 @@ try:
             st.info("Cargue datos en la pestaña de Agua Tratada.")
 
     with t3:
-        # (Se mantiene igual a tu código original)
         st.subheader("🛠️ Estado de Equipos")
         if not df_manto.empty:
             if 'SALUD' in df_manto.columns:
@@ -158,33 +161,26 @@ try:
             with st.expander("Historial"):
                 st.dataframe(df_manto, use_container_width=True)
 
-   with t4:
-    st.subheader("📦 Control de Inventario - Kardex")
-    if not df_kardex.empty:
-        # Aseguramos que los nombres coincidan con tu imagen
-        df_kardex.columns = df_kardex.columns.str.strip()
-        
-        # Convertir cantidades a números por si acaso
-        df_kardex['CANTIDAD'] = pd.to_numeric(df_kardex['CANTIDAD'], errors='coerce').fillna(0)
+    with t4:
+        st.subheader("📦 Control de Inventario - Kardex")
+        if not df_kardex.empty:
+            df_kardex.columns = df_kardex.columns.str.strip()
+            df_kardex['CANTIDAD'] = pd.to_numeric(df_kardex['CANTIDAD'], errors='coerce').fillna(0)
 
-        # Resumen de Stock
-        col1, col2, col3 = st.columns(3)
-        # Filtramos exactamente como aparece en tu captura: ENTRADA y SALIDA
-        tot_entradas = df_kardex[df_kardex['QUE PROCESO VA A REALIZAR'] == 'ENTRADA']['CANTIDAD'].sum()
-        tot_salidas = df_kardex[df_kardex['QUE PROCESO VA A REALIZAR'] == 'SALIDA']['CANTIDAD'].sum()
-        stock_actual = tot_entradas - tot_salidas
+            col1, col2, col3 = st.columns(3)
+            tot_entradas = df_kardex[df_kardex['QUE PROCESO VA A REALIZAR'] == 'ENTRADA']['CANTIDAD'].sum()
+            tot_salidas = df_kardex[df_kardex['QUE PROCESO VA A REALIZAR'] == 'SALIDA']['CANTIDAD'].sum()
+            stock_actual = tot_entradas - tot_salidas
 
-        col1.metric("Entradas Totales", f"{tot_entradas} unidades")
-        col2.metric("Salidas Totales", f"{tot_salidas} unidades")
-        col3.metric("Existencias en Planta", f"{stock_actual} unidades", 
-                    delta=None, delta_color="normal")
+            col1.metric("Entradas Totales", f"{tot_entradas} unidades")
+            col2.metric("Salidas Totales", f"{tot_salidas} unidades")
+            col3.metric("Existencias en Planta", f"{stock_actual} unidades")
 
-        st.markdown("---")
-        st.write("**Vista de Movimientos Recientes**")
-        # Mostramos la tabla tal cual se ve en tu Sheets
-        st.dataframe(df_kardex.sort_values(by='FECHA', ascending=False), use_container_width=True)
-    else:
-        st.warning("La pestaña 'kardex' está vacía o no se ha podido leer aún.")
+            st.markdown("---")
+            st.write("**Vista de Movimientos Recientes**")
+            st.dataframe(df_kardex, use_container_width=True)
+        else:
+            st.warning("La pestaña 'kardex' está vacía o no se ha podido leer aún.")
 
 except Exception as e:
     st.error(f"Error: {e}")
