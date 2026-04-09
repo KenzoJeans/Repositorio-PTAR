@@ -9,9 +9,9 @@ st.markdown('<style>div.block-container{padding-top:2rem;}</style>', unsafe_allo
 st.markdown('<p style="font-size:30px; font-weight:bold; color:#1E88E5;">🏗️ Gestión Integral - Planta de Tratamiento</p>', unsafe_allow_html=True)
 
 # --- CONFIGURACIÓN DE CONEXIÓN ---
-URL_DIRECTA_MANTO = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=746789412#gid=746789412" 
+# Asegúrate de reemplazar estas URLs con las tuyas
+URL_DIRECTA_MANTO = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=746789412#gid=746789412"
 URL_DIRECTA_TRATADA = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=1338797542#gid=1338797542"
-# URL de la pestaña Kardex
 URL_DIRECTA_QUIMICOS = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=170562532#gid=170562532"
 
 # 2. Función de limpieza de datos UNIFICADA
@@ -76,7 +76,7 @@ try:
     except:
         df_manto = pd.DataFrame()
 
-    # Dataset 4: Kardex (Químicos)
+    # Dataset 4: Kardex
     try:
         df_kardex = conn.read(spreadsheet=URL_DIRECTA_QUIMICOS, ttl=0)
     except:
@@ -98,7 +98,6 @@ try:
         df_vert_filtrado = df_vert_filtrado[df_vert_filtrado['proceso'].isin(sel)]
 
     # --- TABS ---
-    # Asegúrate de que esta línea esté al mismo nivel que los bloques try/except de arriba
     t1, t2, t3, t4 = st.tabs(["📊 Dashboard Vertimientos", "🧪 Agua Tratada", "🛠️ Mantenimiento", "🧪 Consumo Químicos"])
 
     with t1:
@@ -122,30 +121,31 @@ try:
             rem = 100.0 if avg_sst_sal == 0 else ((sst_ent - avg_sst_sal) / sst_ent) * 100
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("SST Salida", f"{avg_sst_sal:.1f} mg/L", delta=f"{rem:.1f}% Remoción")
-            c2.metric("pH Promedio", f"{df_tratada['ph'].mean():.2f}")
-            c3.metric("Temp Salida", f"{df_tratada['temp'].mean():.1f} °C")
+            c2.metric("pH Promedio", f"{df_tratada['ph'].mean():.2f}", delta="OK" if 6<=df_tratada['ph'].mean()<=9 else "REVISAR")
+            c3.metric("Temp Salida", f"{df_tratada['temp'].mean():.1f} °C", delta="OK" if df_tratada['temp'].mean()<=40 else "ALTA")
             c4.metric("Caudal Total", f"{df_tratada['caudal'].sum():.1f} m³")
-            st.plotly_chart(px.line(df_tratada.sort_values('fecha'), x='fecha', y=['ph', 'temp'], template="plotly_dark"), use_container_width=True)
         else:
             st.info("Cargue datos en la pestaña de Agua Tratada.")
 
     with t3:
         st.subheader("🛠️ Estado de Equipos")
         if not df_manto.empty:
-            try:
-                equipos = df_manto['EQUIPO'].unique()
-                cols_eq = st.columns(3)
-                for i, eq in enumerate(equipos):
-                    ult = df_manto[df_manto['EQUIPO'] == eq].iloc[-1]
-                    val_s = pd.to_numeric(ult['SALUD'], errors='coerce')
-                    with cols_eq[i % 3]:
-                        st.info(f"⚙️ {eq}\n\nSalud: {val_s}/10")
-            except Exception as e:
-                st.error(f"Error al acceder a 'mantenimiento': {e}")
+            if 'SALUD' in df_manto.columns:
+                df_manto['SALUD'] = pd.to_numeric(df_manto['SALUD'], errors='coerce').fillna(0)
+            equipos = df_manto['EQUIPO'].unique() if 'EQUIPO' in df_manto.columns else []
+            cols_eq = st.columns(3)
+            for i, eq in enumerate(equipos):
+                ult = df_manto[df_manto['EQUIPO'] == eq].iloc[-1]
+                val_s = ult['SALUD']
+                color = "#4CAF50" if val_s >= 8 else "#FFEB3B" if val_s >= 6 else "#F44336"
+                with cols_eq[i % 3]:
+                    st.markdown(f"""<div style="background:#1E1E1E; padding:15px; border-radius:10px; border-top:5px solid {color}; margin-bottom:10px;">
+                        <h4 style="margin:0;">⚙️ {eq}</h4>
+                        <p style="color:{color}; margin:0;">Salud: {val_s}/10</p>
+                    </div>""", unsafe_allow_html=True)
         else:
             st.warning("No hay datos de mantenimiento.")
 
-    
     with t4:
         st.subheader("📦 Control de Inventario y Consumo")
         
@@ -156,71 +156,49 @@ try:
         }
 
         if not df_kardex.empty:
-            # Limpieza profunda de nombres de columnas y datos
             df_kardex.columns = df_kardex.columns.str.strip()
-            df_kardex['CANTIDAD'] = pd.to_numeric(df_kardex['CANTIDAD'], errors='coerce').fillna(0)
+            df_kardex['CANTIDAD'] = pd.to_numeric(df_kardex['CANTIDAD'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
             
-            # --- CORRECCIÓN DE ERROR DE FECHA ---
-            # Convertimos a datetime y eliminamos las filas que no tengan fecha válida para evitar el error de float
+            # Limpieza de fechas para evitar error float vs date
             df_kardex['fecha_dt'] = pd.to_datetime(df_kardex['FECHA'], errors='coerce').dt.date
-            df_kardex = df_kardex.dropna(subset=['fecha_dt'])
+            df_limpio = df_kardex.dropna(subset=['fecha_dt'])
 
-            # --- FILTRO DE CONSUMO POR RANGO ---
+            # --- SECCIÓN DE CONSUMO POR RANGO ---
             st.write("### 📅 Consumo en Periodo")
-            
-            # Verificamos que existan fechas válidas para el selector
-            if not df_kardex.empty:
-                f_min, f_max = df_kardex['fecha_dt'].min(), df_kardex['fecha_dt'].max()
-                f_rango = st.date_input("Selecciona rango de consumo:", [f_min, f_max], key="kardex_date")
+            if not df_limpio.empty:
+                f_min, f_max = df_limpio['fecha_dt'].min(), df_limpio['fecha_dt'].max()
+                f_rango = st.date_input("Rango para reporte de salidas:", [f_min, f_max], key="k_date")
                 
                 if len(f_rango) == 2:
-                    # Filtramos salidas usando las fechas limpias
-                    mask_rango = (df_kardex['QUE PROCESO VA A REALIZAR'] == 'SALIDA') & \
-                                 (df_kardex['fecha_dt'] >= f_rango[0]) & \
-                                 (df_kardex['fecha_dt'] <= f_rango[1])
+                    df_salidas = df_limpio[(df_limpio['QUE PROCESO VA A REALIZAR'] == 'SALIDA') & 
+                                         (df_limpio['fecha_dt'] >= f_rango[0]) & 
+                                         (df_limpio['fecha_dt'] <= f_rango[1])]
                     
-                    df_salidas = df_kardex[mask_rango]
                     sum_salidas = df_salidas.groupby('NOMBRE DEL QUIMICO')['CANTIDAD'].sum().to_dict()
-                    
                     c_cons = st.columns(len(STOCK_INICIAL))
                     for i, prod in enumerate(STOCK_INICIAL.keys()):
-                        with c_cons[i % len(c_cons)]:
+                        with c_cons[i]:
                             st.metric(f"Salidas: {prod}", f"{sum_salidas.get(prod, 0)} kg")
 
             st.markdown("---")
 
-            # --- STOCK ACTUAL (REAL) ---
-            # Esta parte usa todo el historial, no se ve afectada por el filtro de arriba
-            df_kardex['neto'] = df_kardex.apply(
-                lambda x: x['CANTIDAD'] if x['QUE PROCESO VA A REALIZAR'] == 'ENTRADA' else -x['CANTIDAD'], 
-                axis=1
-            )
-            movs = df_kardex.groupby('NOMBRE DEL QUIMICO')['neto'].sum().to_dict()
-            
+            # --- SECCIÓN DE EXISTENCIAS REALES ---
             st.write("### 🔋 Existencias Actuales")
+            df_limpio['neto'] = df_limpio.apply(lambda x: x['CANTIDAD'] if x['QUE PROCESO VA A REALIZAR'] == 'ENTRADA' else -x['CANTIDAD'], axis=1)
+            movs = df_limpio.groupby('NOMBRE DEL QUIMICO')['neto'].sum().to_dict()
+            
             cols_s = st.columns(len(STOCK_INICIAL))
             for i, (prod, inicial) in enumerate(STOCK_INICIAL.items()):
                 actual = inicial + movs.get(prod, 0)
-                with cols_s[i % len(cols_s)]:
-                    # Alerta si queda menos del 20% del stock inicial o menos de 20kg
+                with cols_s[i]:
                     alerta = actual < 20
-                    st.metric(
-                        label=prod, 
-                        value=f"{actual} kg", 
-                        delta="⚠️ REABASTECER" if alerta else "STOCK OK", 
-                        delta_color="inverse" if alerta else "normal"
-                    )
+                    st.metric(prod, f"{actual} kg", 
+                              delta="⚠️ REABASTECER" if alerta else "OK", 
+                              delta_color="inverse" if alerta else "normal")
 
-            # Gráfica comparativa
-            resumen_grafica = pd.DataFrame([
-                {"Producto": p, "Stock": STOCK_INICIAL[p] + movs.get(p, 0)} for p in STOCK_INICIAL
-            ])
-            st.plotly_chart(px.bar(resumen_grafica, x='Producto', y='Stock', color='Producto', template="plotly_dark"), use_container_width=True)
-            
-            with st.expander("Ver Historial de Movimientos"):
-                st.dataframe(df_kardex[['FECHA', 'OPERARIO', 'QUE PROCESO VA A REALIZAR', 'NOMBRE DEL QUIMICO', 'CANTIDAD']], use_container_width=True)
+            st.plotly_chart(px.bar(df_limpio, x='NOMBRE DEL QUIMICO', y='neto', title="Balance de Movimientos"), use_container_width=True)
         else:
-            st.info("No hay datos registrados en la hoja de Kardex.")
+            st.info("No hay datos registrados en Kardex.")
 
 except Exception as e:
-    st.error(f"Se detectó un error en la aplicación: {e}")
+    st.error(f"Se detectó un error: {e}")
