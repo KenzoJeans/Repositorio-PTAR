@@ -343,27 +343,66 @@ try:
     with t3:
         st.subheader("🛠️ Gestión de Mantenimiento - Kenzo Jeans")
         
-        if not df_manto.empty:
-            # --- LIMPIEZA AUTOMÁTICA DE COLUMNAS ---
-            # Esto evita el error 'FECHA' eliminando espacios y estandarizando
+        # 1. Verificación de Datos
+        if df_manto is not None and not df_manto.empty:
+            # --- LIMPIEZA DE COLUMNAS ---
             df_manto.columns = df_manto.columns.str.strip().str.upper()
             
+            # Aseguramos que SALUD sea número
             if 'SALUD' in df_manto.columns:
                 df_manto['SALUD'] = pd.to_numeric(df_manto['SALUD'], errors='coerce').fillna(0)
             
-            # Verificamos si existe la columna FECHA después de limpiar
-            col_fecha = 'FECHA' if 'FECHA' in df_manto.columns else df_manto.columns[0]
+            # Identificamos la columna de fecha (por si no se llama exactamente FECHA)
+            col_f = 'FECHA' if 'FECHA' in df_manto.columns else df_manto.columns[0]
             
-            # --- FILA 1: RESUMEN ---
-            total_eq = df_manto['EQUIPO'].nunique() if 'EQUIPO' in df_manto.columns else 0
-            criticos = df_manto[df_manto['SALUD'] < 6]['EQUIPO'].nunique() if 'EQUIPO' in df_manto.columns else 0
+            # --- FILA 1: MÉTRICAS RESUMEN ---
+            t_eq = df_manto['EQUIPO'].nunique() if 'EQUIPO' in df_manto.columns else 0
+            # Consideramos crítico salud < 6
+            crit = df_manto[df_manto['SALUD'] < 6]['EQUIPO'].nunique() if 'EQUIPO' in df_manto.columns else 0
             
-            cm1, cm2, cm3 = st.columns(3)
-            cm1.metric("Total Equipos", total_eq)
-            cm2.metric("En Riesgo", criticos, delta="- Alerta" if criticos > 0 else "OK", delta_color="inverse")
-            cm3.metric("Disponibilidad", f"{((total_eq-criticos)/total_eq)*100:.1f}%" if total_eq > 0 else "0%")
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Total Equipos", t_eq)
+            m2.metric("En Riesgo", crit, delta=f"{crit} Críticos" if crit > 0 else "OK", delta_color="inverse")
+            m3.metric("Disponibilidad", f"{((t_eq-crit)/t_eq)*100:.1f}%" if t_eq > 0 else "100%")
 
             st.markdown("---")
+
+            # --- FILA 2: TARJETAS DE EQUIPOS ---
+            if 'EQUIPO' in df_manto.columns:
+                list_eq = df_manto['EQUIPO'].unique()
+                c_cards = st.columns(3)
+                
+                for idx, nombre_eq in enumerate(list_eq):
+                    # Filtramos el último estado de este equipo específico
+                    status_eq = df_manto[df_manto['EQUIPO'] == nombre_eq].iloc[-1]
+                    s_val = status_eq['SALUD']
+                    f_val = status_eq[col_f]
+                    
+                    # Lógica de colores (Semáforo)
+                    b_color = "#4CAF50" if s_val >= 8 else "#FFEB3B" if s_val >= 6 else "#F44336"
+                    t_estado = "ÓPTIMO" if s_val >= 8 else "PREVENTIVO" if s_val >= 6 else "CRÍTICO"
+                    
+                    with c_cards[idx % 3]:
+                        st.markdown(f"""
+                            <div style="background:#1E1E1E; padding:18px; border-radius:12px; border-left:8px solid {b_color}; margin-bottom:15px; min-height:160px;">
+                                <h4 style="margin:0; color:white;">{nombre_eq}</h4>
+                                <p style="color:{b_color}; font-size:12px; font-weight:bold; margin:5px 0;">{t_estado}</p>
+                                <h2 style="margin:10px 0; font-size:28px;">❤️ {s_val}/10</h2>
+                                <p style="color:#777; font-size:11px; margin:0;">Última: {f_val}</p>
+                            </div>
+                        """, unsafe_allow_html=True)
+
+            # --- FILA 3: GRÁFICO HISTÓRICO ---
+            st.markdown("---")
+            st.write("**📊 Tendencia de Salud de Activos**")
+            # Ordenamos por fecha para que la línea tenga sentido
+            fig_m = px.line(df_manto.sort_values(col_f), x=col_f, y='SALUD', color='EQUIPO',
+                            markers=True, template="plotly_dark", height=350)
+            fig_m.update_layout(margin=dict(l=20, r=20, t=10, b=10))
+            st.plotly_chart(fig_m, use_container_width=True)
+
+        else:
+            st.info("No se encontraron registros en la hoja de Mantenimiento.")
 
             # --- FILA 2: TARJETAS COLORIDAS ---
             if 'EQUIPO' in df_manto.columns:
