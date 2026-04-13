@@ -335,18 +335,67 @@ try:
             st.warning("No hay datos registrados en la hoja de 'Agua Tratada'.")
 
     with t3:
-        st.subheader("🛠️ Estado de Equipos")
+        st.subheader("🛠️ Estado de Equipos - Kenzo Jeans")
+        
         if not df_manto.empty:
+            # --- 1. NORMALIZACIÓN DEFENSIVA ---
+            # Limpiamos nombres de columnas (quitar espacios y pasar a MAYÚSCULAS)
+            df_manto.columns = df_manto.columns.str.strip().str.upper()
+            
+            # Aseguramos que 'SALUD' sea numérico para evitar errores en comparaciones
             if 'SALUD' in df_manto.columns:
                 df_manto['SALUD'] = pd.to_numeric(df_manto['SALUD'], errors='coerce').fillna(0)
-            equipos = df_manto['EQUIPO'].unique() if 'EQUIPO' in df_manto.columns else []
-            cols_eq = st.columns(3)
-            for i, eq in enumerate(equipos):
-                ult = df_manto[df_manto['EQUIPO'] == eq].iloc[-1]
-                val_s = ult['SALUD']
-                color = "#4CAF50" if val_s >= 8 else "#FFEB3B" if val_s >= 6 else "#F44336"
-                with cols_eq[i % 3]:
-                    st.markdown(f'<div style="background:#1E1E1E; padding:15px; border-radius:10px; border-top:5px solid {color};"><h4>⚙️ {eq}</h4><p style="color:{color};">Salud: {val_s}/10</p></div>', unsafe_allow_html=True)
+            
+            # Identificamos la columna de tiempo (usualmente 'FECHA' o 'MARCA TEMPORAL')
+            col_fecha_m = 'FECHA' if 'FECHA' in df_manto.columns else df_manto.columns[0]
+            
+            # --- 2. TARJETAS DE SALUD INDIVIDUAL ---
+            if 'EQUIPO' in df_manto.columns:
+                equipos = df_manto['EQUIPO'].unique()
+                cols_eq = st.columns(3)
+                
+                for i, eq in enumerate(equipos):
+                    # Obtenemos el registro más reciente para este equipo
+                    ult_reg = df_manto[df_manto['EQUIPO'] == eq].iloc[-1]
+                    val_s = ult_reg['SALUD']
+                    fecha_val = ult_reg[col_fecha_m]
+                    
+                    # Lógica de colores (Semáforo)
+                    color = "#4CAF50" if val_s >= 8 else "#FFEB3B" if val_s >= 6 else "#F44336"
+                    desc_estado = "ÓPTIMO" if val_s >= 8 else "PREVENTIVO" if val_s >= 6 else "CRÍTICO"
+                    
+                    with cols_eq[i % 3]:
+                        st.markdown(f"""
+                            <div style="background:#1E1E1E; padding:20px; border-radius:15px; border-left:10px solid {color}; margin-bottom:20px; border-top: 1px solid #333;">
+                                <h4 style="margin:0; color:white;">{eq}</h4>
+                                <p style="color:{color}; font-weight:bold; margin:5px 0; font-size:13px;">{desc_estado}</p>
+                                <h2 style="margin:10px 0;">❤️ {val_s}/10</h2>
+                                <small style="color:#888;">Última revisión: {fecha_val}</small>
+                            </div>
+                        """, unsafe_allow_html=True)
+            
+            # --- 3. GRÁFICA DE EVOLUCIÓN HISTÓRICA ---
+            st.markdown("---")
+            st.write("**📊 Evolución Histórica de Salud**")
+            
+            # Ordenamos por fecha para que la línea de tiempo sea correcta
+            df_manto_plot = df_manto.sort_values(col_fecha_m)
+            
+            fig_manto = px.line(
+                df_manto_plot, 
+                x=col_fecha_m, 
+                y='SALUD', 
+                color='EQUIPO',
+                markers=True, 
+                template="plotly_dark",
+                labels={'SALUD': 'Nivel de Salud', col_fecha_m: 'Fecha de Inspección'}
+            )
+            
+            fig_manto.update_layout(hovermode="x unified")
+            st.plotly_chart(fig_manto, use_container_width=True)
+
+        else:
+            st.info("No se encontraron datos en la hoja de Mantenimiento.")
 
     with t4:
         st.subheader("📦 Inventario y Consumo - Kenzo Jeans")
