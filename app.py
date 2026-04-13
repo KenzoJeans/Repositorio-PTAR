@@ -7,17 +7,31 @@ import plotly.express as px
 st.set_page_config(page_title="PTAR - Kenzo Jeans", layout="wide", page_icon="💧")
 st.markdown('<style>div.block-container{padding-top:2rem;}</style>', unsafe_allow_html=True)
 
-# --- ENCABEZADO CON LOGO KENZO JEANS ---
-col_logo, col_titulo = st.columns([1, 6])
+# --- ENCABEZADO PERSONALIZADO KENZO JEANS SAS ---
+# Este bloque elimina el espacio extra que está cortando tu logo
+st.markdown("""
+    <style>
+        .block-container {
+            padding-top: 1rem;
+            padding-bottom: 0rem;
+        }
+        [data-testid="stImage"] img {
+            object-fit: contain;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+col_logo, col_titulo = st.columns([1.2, 5])
+
 with col_logo:
     try:
-        # Se asume que la imagen está en la misma carpeta raíz del repositorio
-        st.image("logo-white-kenzo.png", width=120)
+        # Usamos use_container_width para que no se desborde ni se corte
+        st.image("logo-white-kenzo.png", use_container_width=True)
     except Exception:
-        st.caption("Kenzo Jeans SAS") # Texto alternativo de respaldo
-        
+        st.markdown("**KENZO JEANS**")
+
 with col_titulo:
-    st.markdown('<p style="font-size:30px; font-weight:bold; color:#1E88E5;">🏗️ Gestión Integral PTAR - Kenzo Jeans SAS</p>', unsafe_allow_html=True)
+    st.title("Gestión Integral PTAR - Kenzo Jeans SAS")
 
 # --- CONFIGURACIÓN DE CONEXIÓN ---
 # Asegúrate de reemplazar estas URLs con las tuyas
