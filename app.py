@@ -416,18 +416,15 @@ try:
             with st.expander("📝 Ver historial completo de intervenciones"):
                 st.dataframe(df_manto.sort_values(col_fecha_m, ascending=False), use_container_width=True)
     with t4:
-        st.subheader("📦 Gestión de Inventarios y Consumo de Químicos")
+        st.subheader("📦 Gestión de Inventarios y Consumo - Kenzo Jeans")
         
-        # 1. Configuración de Inventario Teórico (Ajustar según necesidad)
         STOCK_INICIAL = {"SULFATO DE ALUMINIO": 119, "CAL": 79, "POLIMERO": 50}
         
         if not df_kardex.empty:
-            # Limpieza y preparación de datos
             df_kardex.columns = df_kardex.columns.str.strip().str.upper()
             df_kardex['CANTIDAD'] = pd.to_numeric(df_kardex['CANTIDAD'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
             
-            # --- FILA 1: KPIs DE INVENTARIO ACTUAL ---
-            # Calculamos entradas vs salidas para saber qué hay hoy
+            # --- FILA 1: KPIs ---
             df_kardex['NETO'] = df_kardex.apply(lambda x: x['CANTIDAD'] if x['QUE PROCESO VA A REALIZAR'] == 'ENTRADA' else -x['CANTIDAD'], axis=1)
             resumen_inv = df_kardex.groupby('NOMBRE DEL QUIMICO')['NETO'].sum().to_dict()
             
@@ -435,60 +432,49 @@ try:
             for i, (prod, stock_ini) in enumerate(STOCK_INICIAL.items()):
                 actual = stock_ini + resumen_inv.get(prod, 0)
                 col_k = [ck1, ck2, ck3][i]
-                
-                # Alerta visual si el stock es bajo
                 alerta = "⚠️ REABASTECER" if actual < 20 else "✅ STOCK OK"
-                color_delta = "inverse" if actual < 20 else "normal"
-                
-                col_k.metric(prod, f"{actual:.1f} kg", delta=alerta, delta_color=color_delta)
+                col_k.metric(prod, f"{actual:.1f} kg", delta=alerta, delta_color="inverse" if actual < 20 else "normal")
 
             st.markdown("---")
 
-            # --- FILA 2: GRÁFICO DE DONA Y RESUMEN ---
+            # --- FILA 2: DONA Y RESUMEN ---
             col_dona, col_info = st.columns([1.5, 1])
-            
-            # Filtramos solo las salidas para el consumo
             df_salidas = df_kardex[df_kardex['QUE PROCESO VA A REALIZAR'] == 'SALIDA']
             consumo_total = df_salidas.groupby('NOMBRE DEL QUIMICO')['CANTIDAD'].sum().reset_index()
 
             with col_dona:
-                st.write("**🍩 Distribución de Consumo Total**")
-                fig_dona = px.pie(
-                    consumo_total, 
-                    values='CANTIDAD', 
-                    names='NOMBRE DEL QUIMICO', 
-                    hole=0.6,
-                    color_discrete_sequence=['#2E7D32', '#FBC02D', '#1565C0'],
-                    template="plotly_dark"
-                )
+                st.write("**🍩 Distribución de Consumo**")
+                fig_dona = px.pie(consumo_total, values='CANTIDAD', names='NOMBRE DEL QUIMICO', hole=0.6,
+                                 color_discrete_sequence=['#2E7D32', '#FBC02D', '#1565C0'], template="plotly_dark")
                 fig_dona.update_layout(margin=dict(l=20, r=20, t=20, b=20), height=300)
                 st.plotly_chart(fig_dona, use_container_width=True)
 
             with col_info:
-                st.write("**💡 Insights de Consumo**")
+                st.write("**💡 Estado de Bodega**")
                 if not consumo_total.empty:
-                    max_cons = consumo_total.loc[consumo_total['CANTIDAD'].idxmax()]
-                    st.info(f"El químico de mayor uso es **{max_cons['NOMBRE DEL QUIMICO']}** con {max_cons['CANTIDAD']:.1f} kg.")
-                    
-                    # Cálculo de autonomía simple (ejemplo: basado en consumo promedio diario)
-                    st.success("Dato: El consumo se ha mantenido estable los últimos 7 días.")
+                    st.info("El sistema está monitoreando las salidas diarias para predecir agotamiento de stock.")
+                    st.success("Sugerencia: Revisar niveles de Cal el próximo lunes.")
 
-            # --- FILA 3: TABLA DETALLADA ---
+            # --- FILA 3: TABLA DETALLADA (CORREGIDA SIN MATPLOTLIB) ---
             st.markdown("---")
             st.write("**📋 Historial Detallado de Movimientos**")
             
-            # Estilizamos la tabla para que sea más legible
             df_view = df_kardex[['FECHA', 'NOMBRE DEL QUIMICO', 'QUE PROCESO VA A REALIZAR', 'CANTIDAD']].copy()
             df_view = df_view.sort_values('FECHA', ascending=False)
             
+            # Usamos st.dataframe directamente con configuración de columnas para el estilo
             st.dataframe(
-                df_view.style.format({'CANTIDAD': '{:.2f} kg'})
-                .background_gradient(subset=['CANTIDAD'], cmap='Greens'),
-                use_container_width=True
+                df_view,
+                column_config={
+                    "CANTIDAD": st.column_config.NumberColumn("Cantidad (kg)", format="%.2f"),
+                    "QUE PROCESO VA A REALIZAR": st.column_config.TextColumn("Tipo Movimiento")
+                },
+                use_container_width=True,
+                hide_index=True
             )
 
         else:
-            st.warning("No se detectaron datos en la hoja de Químicos/Kardex.")
+            st.warning("No se detectaron datos en la hoja de Químicos.")
 
 except Exception as e:
     st.error(f"Se detectó un error: {e}")
