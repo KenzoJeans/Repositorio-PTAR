@@ -374,29 +374,47 @@ try:
                             </div>
                         """, unsafe_allow_html=True)
             
-            # --- 3. GRÁFICA DE EVOLUCIÓN HISTÓRICA ---
+            # --- 3. ANÁLISIS VISUAL AVANZADO (REEMPLAZO DE LA GRÁFICA) ---
             st.markdown("---")
-            st.write("**📊 Evolución Histórica de Salud**")
-            
-            # Ordenamos por fecha para que la línea de tiempo sea correcta
-            df_manto_plot = df_manto.sort_values(col_fecha_m)
-            
-            fig_manto = px.line(
-                df_manto_plot, 
-                x=col_fecha_m, 
-                y='SALUD', 
-                color='EQUIPO',
-                markers=True, 
-                template="plotly_dark",
-                labels={'SALUD': 'Nivel de Salud', col_fecha_m: 'Fecha de Inspección'}
-            )
-            
-            fig_manto.update_layout(hovermode="x unified")
-            st.plotly_chart(fig_manto, use_container_width=True)
+            col_v1, col_v2 = st.columns([2, 1])
 
-        else:
-            st.info("No se encontraron datos en la hoja de Mantenimiento.")
+            with col_v1:
+                st.write("**🌡️ Mapa de Salud Semanal (Heatmap)**")
+                # Creamos una matriz de Salud: Equipos vs Fecha
+                # Esto permite ver bloques de color: Verde (sano), Rojo (problema)
+                df_pivot = df_manto.pivot_table(
+                    index='EQUIPO', 
+                    columns=col_fecha_m, 
+                    values='SALUD', 
+                    aggfunc='last'
+                ).fillna(0)
 
+                fig_heat = px.imshow(
+                    df_pivot,
+                    labels=dict(x="Fecha", y="Equipo", color="Salud"),
+                    x=df_pivot.columns,
+                    y=df_pivot.index,
+                    color_continuous_scale=['#F44336', '#FFEB3B', '#4CAF50'], # Rojo -> Amarillo -> Verde
+                    aspect="auto",
+                    template="plotly_dark"
+                )
+                fig_heat.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=350)
+                st.plotly_chart(fig_heat, use_container_width=True)
+
+            with col_v2:
+                st.write("**📢 Alertas de Mantenimiento**")
+                # Filtramos equipos con salud menor a 7 para mostrar como tareas pendientes
+                pendientes = df_manto[df_manto['SALUD'] < 7].sort_values(col_fecha_m, ascending=False).drop_duplicates('EQUIPO')
+                
+                if not pendientes.empty:
+                    for _, row in pendientes.iterrows():
+                        st.warning(f"**{row['EQUIPO']}**: Salud en {row['SALUD']}/10. Requiere revisión técnica inmediata.")
+                else:
+                    st.success("✅ Todos los equipos operan en rangos seguros.")
+
+            # --- 4. TABLA DE BITÁCORA ---
+            with st.expander("📝 Ver historial completo de intervenciones"):
+                st.dataframe(df_manto.sort_values(col_fecha_m, ascending=False), use_container_width=True)
     with t4:
         st.subheader("📦 Inventario y Consumo - Kenzo Jeans")
         STOCK_INICIAL = {"SULFATO DE ALUMINIO": 119, "CAL": 79, "POLIMERO": 50}
