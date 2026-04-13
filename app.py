@@ -4,7 +4,7 @@ import pandas as pd
 import plotly.express as px
 
 # 1. Configuración de página y Estilo
-st.set_page_config(page_title="PTAR - Kenzo Jeans", layout="wide", page_icon="💧")
+st.set_page_config(page_title="SGA - PTAR - Kenzo Jeans", layout="wide", page_icon="💧")
 st.markdown('<style>div.block-container{padding-top:2rem;}</style>', unsafe_allow_html=True)
 
 # --- ENCABEZADO PERSONALIZADO KENZO JEANS SAS ---
@@ -31,7 +31,7 @@ with col_logo:
         st.markdown("**KENZO JEANS**")
 
 with col_titulo:
-    st.title("Gestión Integral PTAR - Kenzo Jeans SAS")
+    st.title("SGA - Gestión Integral PTAR - Kenzo Jeans SAS")
 
 # --- CONFIGURACIÓN DE CONEXIÓN ---
 # Asegúrate de reemplazar estas URLs con las tuyas
@@ -138,7 +138,7 @@ try:
         df_vert_filtrado = df_vert_filtrado[df_vert_filtrado['quimico'].astype(str).str.contains(filtro_q, case=False, na=False)]
 
     # --- DEFINICIÓN DE PESTAÑAS ---
-    t1, t2, t3, t4 = st.tabs(["📊 Dashboard Vertimientos", "🧪 Agua Tratada", "🛠️ Mantenimiento", "🧪 Consumo Químicos"])
+    t1, t2, t3, t4 = st.tabs(["📊 Dashboard de vertimientos", "🧪 Agua tratada", "🛠️ Mantenimiento", "🧪 Consumo de químicos"])
 
     with t1:
         if not df_vert_filtrado.empty:
@@ -158,17 +158,17 @@ try:
             # FILA 2: Gráficas de pH
             col1, col2 = st.columns(2)
             with col1:
-                st.write("**📈 Histórico de pH (Entrada)**")
+                st.write("**📈 Histórico de pH (Tintorería)**")
                 st.plotly_chart(px.line(df_vert_filtrado.sort_values('fecha'), x='fecha', y='ph', markers=True, template="plotly_dark"), use_container_width=True)
             with col2:
-                st.write("**📊 pH por Proceso**")
+                st.write("**📊 pH por proceso**")
                 df_ph_p = df_vert_filtrado.groupby('proceso')['ph'].mean().reset_index()
                 st.plotly_chart(px.bar(df_ph_p, x='proceso', y='ph', color='proceso', template="plotly_dark"), use_container_width=True)
 
            # FILA 3: Análisis de Temperatura con Degradado y Estilo
             col3, col4 = st.columns(2)
             with col3:
-                st.markdown("<h4 style='text-align: center; color: #FFA726;'>🌡️ Tendencia Temperatura Promedio (Degradado)</h4>", unsafe_allow_html=True)
+                st.markdown("<h4 style='text-align: center; color: #FFA726;'>🌡️ Tendencia de temperatura promedio</h4>", unsafe_allow_html=True)
                 
                 # 1. Crear la gráfica de área base con Plotly Express
                 fig_temp_hist = px.area(
@@ -211,7 +211,7 @@ try:
                 st.plotly_chart(fig_temp_hist, use_container_width=True)
                 
             with col4:
-                st.markdown("<h4 style='text-align: center; color: #FFD54F;'>📊 Temperatura por Proceso (Resplandor)</h4>", unsafe_allow_html=True)
+                st.markdown("<h4 style='text-align: center; color: #FFD54F;'>📊 Temperatura por proceso</h4>", unsafe_allow_html=True)
                 df_temp_proc = df_vert_filtrado.groupby('proceso')['temp'].mean().reset_index()
                 
                 # Usamos un amarillo/naranja vibrante para los puntos y líneas
@@ -246,7 +246,7 @@ try:
                 st.plotly_chart(fig_temp_proc, use_container_width=True)
 
             # FILA 4: SST y Tabla
-            st.write("**🍩 Promedio de Sólidos (SST) por Proceso**")
+            st.write("**🍩 Promedio de Sólidos (SST) por proceso**")
             df_sst_p = df_vert_filtrado.groupby('proceso')['sst'].mean().reset_index()
             st.plotly_chart(px.pie(df_sst_p, values='sst', names='proceso', hole=0.5, template="plotly_dark"), use_container_width=True)
             
