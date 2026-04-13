@@ -82,20 +82,28 @@ try:
     except:
         df_kardex = pd.DataFrame()
 
-    # --- BARRA LATERAL ---
-    st.sidebar.header("Filtros Dashboard Vertimientos")
+# --- BARRA LATERAL ---
+    st.sidebar.header("🔍 Filtros Dashboard")
     df_vert_filtrado = df_base_full.copy()
 
+    # 1. Filtro de Fechas
     if not df_base_full.empty and 'fecha' in df_base_full.columns:
         min_f, max_f = min(df_base_full['fecha']), max(df_base_full['fecha'])
         rango = st.sidebar.date_input("Rango de fechas:", [min_f, max_f])
         if len(rango) == 2:
             df_vert_filtrado = df_vert_filtrado[(df_vert_filtrado['fecha'] >= rango[0]) & (df_vert_filtrado['fecha'] <= rango[1])]
 
+    # 2. Filtro de Procesos (Multiselect)
     if not df_base_full.empty and 'proceso' in df_base_full.columns:
         procesos = sorted(df_base_full['proceso'].unique().tolist())
-        sel = st.sidebar.multiselect("Procesos:", procesos, default=procesos)
+        sel = st.sidebar.multiselect("Seleccionar Procesos:", procesos, default=procesos)
         df_vert_filtrado = df_vert_filtrado[df_vert_filtrado['proceso'].isin(sel)]
+
+    # 3. NUEVO: Filtro de Químicos (Escritura)
+    # Se busca en la columna 'quimico' o similar que tengas en tu base de vertimientos
+    filtro_q = st.sidebar.text_input("Filtrar por Químico (escribe el nombre):", "")
+    if filtro_q and 'quimico' in df_vert_filtrado.columns:
+        df_vert_filtrado = df_vert_filtrado[df_vert_filtrado['quimico'].astype(str).str.contains(filtro_q, case=False, na=False)]
 
     # --- TABS ---
     t1, t2, t3, t4 = st.tabs(["📊 Dashboard Vertimientos", "🧪 Agua Tratada", "🛠️ Mantenimiento", "🧪 Consumo Químicos"])
