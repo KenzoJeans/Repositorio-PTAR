@@ -270,17 +270,69 @@ try:
 
     with t2:
         st.subheader("🧪 Monitoreo de Agua Tratada")
+        
         if not df_tratada.empty:
+            # --- CÁLCULOS DE EFICIENCIA ---
             avg_sst_sal = df_tratada['sst'].mean()
+            # Obtenemos el SST de entrada promedio del dashboard principal para comparar
             sst_ent = df_base_full['sst'].mean() if not df_base_full.empty else 1
-            rem = 100.0 if avg_sst_sal == 0 else ((sst_ent - avg_sst_sal) / sst_ent) * 100
+            
+            # Lógica: SST=0 significa 100% de remoción
+            if avg_sst_sal == 0:
+                remocion = 100.0
+            else:
+                remocion = max(0, (1 - (avg_sst_sal / sst_ent)) * 100)
+
+            # --- TARJETAS (KPIs) ---
             c1, c2, c3, c4 = st.columns(4)
-            c1.metric("SST Salida", f"{avg_sst_sal:.1f} mg/L", delta=f"{rem:.1f}% Remoción")
-            c2.metric("pH Promedio", f"{df_tratada['ph'].mean():.2f}")
-            c3.metric("Temp Salida", f"{df_tratada['temp'].mean():.1f} °C")
+            c1.metric("SST Salida (Prom)", f"{avg_sst_sal:.1f} mg/L", delta=f"{remocion:.1f}% Eficiencia")
+            c2.metric("pH Salida", f"{df_tratada['ph'].mean():.2f}", delta="OK" if 6<=df_tratada['ph'].mean()<=9 else "FUERA")
+            c3.metric("Temp Salida", f"{df_tratada['temp'].mean():.1f} °C", delta="ESTABLE" if df_tratada['temp'].mean()<=40 else "ALTA")
             c4.metric("Caudal Total", f"{df_tratada['caudal'].sum():.1f} m³")
+
+            st.markdown("---")
+
+            # --- FILA 1: COMPORTAMIENTO FÍSICO-QUÍMICO ---
+            col_a, col_b = st.columns(2)
+            with col_a:
+                st.write("**📈 pH del Agua Tratada (Tiempo)**")
+                fig_ph_t = px.line(df_tratada.sort_values('fecha'), x='fecha', y='ph', 
+                                   markers=True, template="plotly_dark", color_discrete_sequence=['#00C853'])
+                # Líneas de referencia para cumplimiento legal
+                fig_ph_t.add_hline(y=6, line_dash="dash", line_color="red", annotation_text="Límite Inf")
+                fig_ph_t.add_hline(y=9, line_dash="dash", line_color="red", annotation_text="Límite Sup")
+                st.plotly_chart(fig_ph_t, use_container_width=True)
+
+            with col_b:
+                st.write("**🌡️ Temperatura de Salida (Tiempo)**")
+                # Usamos el naranja que ya definimos para mantener consistencia
+                fig_temp_t = px.area(df_tratada.sort_values('fecha'), x='fecha', y='temp', 
+                                     template="plotly_dark", color_discrete_sequence=['#FFA726'])
+                fig_temp_t.add_hline(y=40, line_dash="dash", line_color="red", annotation_text="Máx Permisible")
+                st.plotly_chart(fig_temp_t, use_container_width=True)
+
+            # --- FILA 2: EFICIENCIA Y VOLUMEN ---
+            col_c, col_d = st.columns(2)
+            with col_c:
+                st.write("**💧 Remoción de Sólidos (Entrada vs Salida)**")
+                # Creamos un comparativo rápido
+                df_comp = pd.DataFrame({
+                    'Etapa': ['Entrada (Crudo)', 'Salida (Tratada)'],
+                    'SST (mg/L)': [sst_ent, avg_sst_sal]
+                })
+                fig_rem = px.bar(df_comp, x='Etapa', y='SST (mg/L)', color='Etapa',
+                                 color_discrete_map={'Entrada (Crudo)': '#78909C', 'Salida (Tratada)': '#00E676'},
+                                 template="plotly_dark")
+                st.plotly_chart(fig_rem, use_container_width=True)
+
+            with col_d:
+                st.write("**📊 Volumen de Agua Tratada por Día**")
+                fig_cau = px.bar(df_tratada.sort_values('fecha'), x='fecha', y='caudal',
+                                 template="plotly_dark", color_discrete_sequence=['#29B6F6'])
+                st.plotly_chart(fig_cau, use_container_width=True)
+
         else:
-            st.info("Sin datos de Agua Tratada.")
+            st.warning("No hay datos registrados en la hoja de 'Agua Tratada'.")
 
     with t3:
         st.subheader("🛠️ Estado de Equipos")
