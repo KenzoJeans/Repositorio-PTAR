@@ -123,7 +123,7 @@ try:
     if filtro_q and 'quimico' in df_vert_filtrado.columns:
         df_vert_filtrado = df_vert_filtrado[df_vert_filtrado['quimico'].astype(str).str.contains(filtro_q, case=False, na=False)]
 
-    # --- TABS ---
+    # --- DEFINICIÓN DE PESTAÑAS ---
     t1, t2, t3, t4 = st.tabs(["📊 Dashboard Vertimientos", "🧪 Agua Tratada", "🛠️ Mantenimiento", "🧪 Consumo Químicos"])
 
     with t1:
@@ -134,59 +134,56 @@ try:
             avg_temp = df_vert_filtrado['temp'].mean()
             avg_sst = df_vert_filtrado['sst'].mean()
             
-            # Aplicamos los límites permisibles (pH: 6-9, Temp: máx 40)
-            m1.metric("Promedio pH", f"{avg_ph:.2f}", delta="DENTRO DE NORMA" if 6<=avg_ph<=9 else "ALERTA", delta_color="normal" if 6<=avg_ph<=9 else "inverse")
+            m1.metric("Promedio pH", f"{avg_ph:.2f}", delta="NORMA" if 6<=avg_ph<=9 else "ALERTA", delta_color="normal" if 6<=avg_ph<=9 else "inverse")
             m2.metric("Temp Promedio", f"{avg_temp:.1f} °C", delta="NORMAL" if avg_temp<=40 else "ALTA", delta_color="normal" if avg_temp<=40 else "inverse")
             m3.metric("SST Promedio", f"{avg_sst:.1f} mg/L")
             m4.metric("Registros", len(df_vert_filtrado))
 
             st.markdown("---")
 
-            # FILA 2: Análisis de pH
+            # FILA 2: Gráficas de pH
             col1, col2 = st.columns(2)
             with col1:
                 st.write("**📈 Histórico de pH (Entrada)**")
-                st.plotly_chart(px.line(df_vert_filtrado.sort_values('fecha'), x='fecha', y='ph', markers=True, template="plotly_dark", color_discrete_sequence=['#1E88E5']), use_container_width=True)
+                st.plotly_chart(px.line(df_vert_filtrado.sort_values('fecha'), x='fecha', y='ph', markers=True, template="plotly_dark"), use_container_width=True)
             with col2:
-                st.write("**📊 pH Promedio por Proceso**")
-                df_ph_proc = df_vert_filtrado.groupby('proceso')['ph'].mean().reset_index()
-                st.plotly_chart(px.bar(df_ph_proc, x='proceso', y='ph', color='proceso', template="plotly_dark"), use_container_width=True)
+                st.write("**📊 pH por Proceso**")
+                df_ph_p = df_vert_filtrado.groupby('proceso')['ph'].mean().reset_index()
+                st.plotly_chart(px.bar(df_ph_p, x='proceso', y='ph', color='proceso', template="plotly_dark"), use_container_width=True)
 
-            # FILA 3: Análisis de Temperatura
+            # FILA 3: Gráficas de Temperatura
             col3, col4 = st.columns(2)
             with col3:
-                st.write("**🌡️ Tendencia Temperatura Promedio**")
-                st.plotly_chart(px.area(df_vert_filtrado.sort_values('fecha'), x='fecha', y='temp', template="plotly_dark", color_discrete_sequence=['#FFA726']), use_container_width=True)
+                st.write("**🌡️ Temperatura Promedio Temporal**")
+                st.plotly_chart(px.area(df_vert_filtrado.sort_values('fecha'), x='fecha', y='temp', template="plotly_dark"), use_container_width=True)
             with col4:
                 st.write("**📊 Temperatura por Proceso**")
-                df_temp_proc = df_vert_filtrado.groupby('proceso')['temp'].mean().reset_index()
-                st.plotly_chart(px.line(df_temp_proc, x='proceso', y='temp', markers=True, template="plotly_dark", color_discrete_sequence=['#FB8C00']), use_container_width=True)
+                df_temp_p = df_vert_filtrado.groupby('proceso')['temp'].mean().reset_index()
+                st.plotly_chart(px.line(df_temp_p, x='proceso', y='temp', markers=True, template="plotly_dark"), use_container_width=True)
 
-            # FILA 4: Donut de Sólidos (SST)
-            st.write("**🍩 Distribución de SST Promedio por Proceso**")
-            df_sst_proc = df_vert_filtrado.groupby('proceso')['sst'].mean().reset_index()
-            fig_donut = px.pie(df_sst_proc, values='sst', names='proceso', hole=0.5, template="plotly_dark", color_discrete_sequence=px.colors.qualitative.Pastel)
-            st.plotly_chart(fig_donut, use_container_width=True)
-
-            # FILA 5: Tabla de Datos
-            with st.expander("📄 Ver Tabla de Datos Detallada"):
-                st.dataframe(df_vert_filtrado.sort_values('fecha', ascending=False), use_container_width=True)
+            # FILA 4: SST y Tabla
+            st.write("**🍩 Promedio de Sólidos (SST) por Proceso**")
+            df_sst_p = df_vert_filtrado.groupby('proceso')['sst'].mean().reset_index()
+            st.plotly_chart(px.pie(df_sst_p, values='sst', names='proceso', hole=0.5, template="plotly_dark"), use_container_width=True)
+            
+            st.write("**📄 Tabla de Datos**")
+            st.dataframe(df_vert_filtrado, use_container_width=True)
         else:
-            st.warning("No hay datos disponibles para los filtros seleccionados.")
+            st.warning("Ajusta los filtros para ver datos.")
 
     with t2:
-        st.subheader("🧪 Monitoreo de Agua Tratada (Salida)")
+        st.subheader("🧪 Monitoreo de Agua Tratada")
         if not df_tratada.empty:
             avg_sst_sal = df_tratada['sst'].mean()
             sst_ent = df_base_full['sst'].mean() if not df_base_full.empty else 1
             rem = 100.0 if avg_sst_sal == 0 else ((sst_ent - avg_sst_sal) / sst_ent) * 100
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("SST Salida", f"{avg_sst_sal:.1f} mg/L", delta=f"{rem:.1f}% Remoción")
-            c2.metric("pH Promedio", f"{df_tratada['ph'].mean():.2f}", delta="OK" if 6<=df_tratada['ph'].mean()<=9 else "REVISAR")
-            c3.metric("Temp Salida", f"{df_tratada['temp'].mean():.1f} °C", delta="OK" if df_tratada['temp'].mean()<=40 else "ALTA")
+            c2.metric("pH Promedio", f"{df_tratada['ph'].mean():.2f}")
+            c3.metric("Temp Salida", f"{df_tratada['temp'].mean():.1f} °C")
             c4.metric("Caudal Total", f"{df_tratada['caudal'].sum():.1f} m³")
         else:
-            st.info("Cargue datos en la pestaña de Agua Tratada.")
+            st.info("Sin datos de Agua Tratada.")
 
     with t3:
         st.subheader("🛠️ Estado de Equipos")
@@ -200,106 +197,38 @@ try:
                 val_s = ult['SALUD']
                 color = "#4CAF50" if val_s >= 8 else "#FFEB3B" if val_s >= 6 else "#F44336"
                 with cols_eq[i % 3]:
-                    st.markdown(f"""<div style="background:#1E1E1E; padding:15px; border-radius:10px; border-top:5px solid {color}; margin-bottom:10px;">
-                        <h4 style="margin:0;">⚙️ {eq}</h4>
-                        <p style="color:{color}; margin:0;">Salud: {val_s}/10</p>
-                    </div>""", unsafe_allow_html=True)
-        else:
-            st.warning("No hay datos de mantenimiento.")
+                    st.markdown(f'<div style="background:#1E1E1E; padding:15px; border-radius:10px; border-top:5px solid {color};"><h4>⚙️ {eq}</h4><p style="color:{color};">Salud: {val_s}/10</p></div>', unsafe_allow_html=True)
 
     with t4:
-        st.subheader("📦 Control de Inventario y Consumo")
-        
-        # --- CONFIGURACIÓN DE STOCK INICIAL ---
-        STOCK_INICIAL = {
-            "SULFATO DE ALUMINIO": 119, 
-            "CAL": 79,                  
-            "POLIMERO": 50               
-        }
-
+        st.subheader("📦 Inventario y Consumo - Kenzo Jeans")
+        STOCK_INICIAL = {"SULFATO DE ALUMINIO": 119, "CAL": 79, "POLIMERO": 50}
         if not df_kardex.empty:
-            # Limpieza profunda de nombres de columnas y datos
             df_kardex.columns = df_kardex.columns.str.strip()
             df_kardex['CANTIDAD'] = pd.to_numeric(df_kardex['CANTIDAD'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
-            
-            # --- CORRECCIÓN DE ERROR DE FECHA ---
-            # Convertimos a datetime y eliminamos las filas que no tengan fecha válida para evitar el error de float
             df_kardex['fecha_dt'] = pd.to_datetime(df_kardex['FECHA'], errors='coerce').dt.date
             df_limpio = df_kardex.dropna(subset=['fecha_dt'])
 
-            # --- FILTRO DE CONSUMO POR RANGO ---
-            st.write("### 📅 Consumo en Periodo")
-            
-            # Verificamos que existan fechas válidas para el selector
             if not df_limpio.empty:
+                st.write("### 📅 Consumo en Periodo")
                 f_min, f_max = df_limpio['fecha_dt'].min(), df_limpio['fecha_dt'].max()
-                f_rango = st.date_input("Rango de fechas para consumo:", [f_min, f_max], key="kardex_date_t4")
+                f_rango = st.date_input("Rango:", [f_min, f_max], key="k_date")
                 
                 if len(f_rango) == 2:
-                    # Filtramos salidas usando las fechas limpias
-                    mask_rango = (df_limpio['QUE PROCESO VA A REALIZAR'] == 'SALIDA') & \
-                                 (df_limpio['fecha_dt'] >= f_rango[0]) & \
-                                 (df_limpio['fecha_dt'] <= f_rango[1])
-                    
-                    df_salidas = df_limpio[mask_rango]
-                    sum_salidas = df_salidas.groupby('NOMBRE DEL QUIMICO')['CANTIDAD'].sum().to_dict()
-                    
-                    c_cons = st.columns(len(STOCK_INICIAL))
-                    for i, prod in enumerate(STOCK_INICIAL.keys()):
-                        with c_cons[i % len(c_cons)]:
-                            st.metric(f"Salidas: {prod}", f"{sum_salidas.get(prod, 0)} kg")
+                    df_sal = df_limpio[(df_limpio['QUE PROCESO VA A REALIZAR'] == 'SALIDA') & (df_limpio['fecha_dt'] >= f_rango[0]) & (df_limpio['fecha_dt'] <= f_rango[1])]
+                    sum_sal = df_sal.groupby('NOMBRE DEL QUIMICO')['CANTIDAD'].sum().to_dict()
+                    c_c = st.columns(3)
+                    for i, p in enumerate(STOCK_INICIAL.keys()):
+                        with c_c[i]: st.metric(f"Salida {p}", f"{sum_sal.get(p, 0)} kg")
 
             st.markdown("---")
-
-            # --- STOCK ACTUAL (REAL) ---
-            # Esta parte usa todo el historial, no se ve afectada por el filtro de arriba
-            df_limpio['neto'] = df_limpio.apply(
-                lambda x: x['CANTIDAD'] if x['QUE PROCESO VA A REALIZAR'] == 'ENTRADA' else -x['CANTIDAD'], 
-                axis=1
-            )
-            movs = df_limpio.groupby('NOMBRE DEL QUIMICO')['neto'].sum().to_dict()
-            
-            st.write("### 🔋 Existencias Actuales")
-            cols_s = st.columns(len(STOCK_INICIAL))
-            for i, (prod, inicial) in enumerate(STOCK_INICIAL.items()):
-                actual = inicial + movs.get(prod, 0)
-                with cols_s[i % len(cols_s)]:
-                    # Alerta si queda menos del 20% del stock inicial o menos de 20kg
-                    alerta = actual < 20
-                    st.metric(
-                        label=prod, 
-                        value=f"{actual} kg", 
-                        delta="⚠️ REABASTECER" if alerta else "STOCK OK", 
-                        delta_color="inverse" if alerta else "normal"
-                    )
-
-            # Gráfica comparativa
-            resumen_grafica = pd.DataFrame([
-                {"Producto": p, "Stock": STOCK_INICIAL[p] + movs.get(p, 0)} for p in STOCK_INICIAL
-            ])
-            st.plotly_chart(px.bar(resumen_grafica, x='Producto', y='Stock', color='Producto', template="plotly_dark"), use_container_width=True)
-            
-            with st.expander("Ver Historial de Movimientos"):
-                st.dataframe(df_limpio[['FECHA', 'OPERARIO', 'QUE PROCESO VA A REALIZAR', 'NOMBRE DEL QUIMICO', 'CANTIDAD']], use_container_width=True)
-        else:
-            st.info("No hay datos registrados en la hoja de Kardex.")
-            # --- SECCIÓN DE EXISTENCIAS REALES ---
             st.write("### 🔋 Existencias Actuales")
             df_limpio['neto'] = df_limpio.apply(lambda x: x['CANTIDAD'] if x['QUE PROCESO VA A REALIZAR'] == 'ENTRADA' else -x['CANTIDAD'], axis=1)
             movs = df_limpio.groupby('NOMBRE DEL QUIMICO')['neto'].sum().to_dict()
-            
-            cols_s = st.columns(len(STOCK_INICIAL))
-            for i, (prod, inicial) in enumerate(STOCK_INICIAL.items()):
-                actual = inicial + movs.get(prod, 0)
+            cols_s = st.columns(3)
+            for i, (prod, ini) in enumerate(STOCK_INICIAL.items()):
+                act = ini + movs.get(prod, 0)
                 with cols_s[i]:
-                    alerta = actual < 20
-                    st.metric(prod, f"{actual} kg", 
-                              delta="⚠️ REABASTECER" if alerta else "OK", 
-                              delta_color="inverse" if alerta else "normal")
-
-            st.plotly_chart(px.bar(df_limpio, x='NOMBRE DEL QUIMICO', y='neto', title="Balance de Movimientos"), use_container_width=True)
-        else:
-            st.info("No hay datos registrados en Kardex.")
+                    st.metric(prod, f"{act} kg", delta="REABASTECER" if act < 20 else "OK", delta_color="inverse" if act < 20 else "normal")
 
 except Exception as e:
     st.error(f"Se detectó un error: {e}")
