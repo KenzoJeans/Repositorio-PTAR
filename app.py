@@ -110,16 +110,51 @@ try:
 
     with t1:
         if not df_vert_filtrado.empty:
+            # FILA 1: Métricas Principales
             m1, m2, m3, m4 = st.columns(4)
-            avg_ph, avg_temp, avg_sst = df_vert_filtrado['ph'].mean(), df_vert_filtrado['temp'].mean(), df_vert_filtrado['sst'].mean()
-            m1.metric("Promedio pH", f"{avg_ph:.2f}", delta="NORMA" if 6<=avg_ph<=9 else "ALERTA")
-            m2.metric("Temp Promedio", f"{avg_temp:.1f} °C", delta="NORMAL" if avg_temp<=40 else "ALTA")
+            avg_ph = df_vert_filtrado['ph'].mean()
+            avg_temp = df_vert_filtrado['temp'].mean()
+            avg_sst = df_vert_filtrado['sst'].mean()
+            
+            # Aplicamos los límites permisibles (pH: 6-9, Temp: máx 40)
+            m1.metric("Promedio pH", f"{avg_ph:.2f}", delta="DENTRO DE NORMA" if 6<=avg_ph<=9 else "ALERTA", delta_color="normal" if 6<=avg_ph<=9 else "inverse")
+            m2.metric("Temp Promedio", f"{avg_temp:.1f} °C", delta="NORMAL" if avg_temp<=40 else "ALTA", delta_color="normal" if avg_temp<=40 else "inverse")
             m3.metric("SST Promedio", f"{avg_sst:.1f} mg/L")
             m4.metric("Registros", len(df_vert_filtrado))
-            st.subheader("📈 Histórico de pH (Entrada)")
-            st.plotly_chart(px.line(df_vert_filtrado.sort_values('fecha'), x='fecha', y='ph', markers=True, template="plotly_dark"), use_container_width=True)
+
+            st.markdown("---")
+
+            # FILA 2: Análisis de pH
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write("**📈 Histórico de pH (Entrada)**")
+                st.plotly_chart(px.line(df_vert_filtrado.sort_values('fecha'), x='fecha', y='ph', markers=True, template="plotly_dark", color_discrete_sequence=['#1E88E5']), use_container_width=True)
+            with col2:
+                st.write("**📊 pH Promedio por Proceso**")
+                df_ph_proc = df_vert_filtrado.groupby('proceso')['ph'].mean().reset_index()
+                st.plotly_chart(px.bar(df_ph_proc, x='proceso', y='ph', color='proceso', template="plotly_dark"), use_container_width=True)
+
+            # FILA 3: Análisis de Temperatura
+            col3, col4 = st.columns(2)
+            with col3:
+                st.write("**🌡️ Tendencia Temperatura Promedio**")
+                st.plotly_chart(px.area(df_vert_filtrado.sort_values('fecha'), x='fecha', y='temp', template="plotly_dark", color_discrete_sequence=['#FFA726']), use_container_width=True)
+            with col4:
+                st.write("**📊 Temperatura por Proceso**")
+                df_temp_proc = df_vert_filtrado.groupby('proceso')['temp'].mean().reset_index()
+                st.plotly_chart(px.line(df_temp_proc, x='proceso', y='temp', markers=True, template="plotly_dark", color_discrete_sequence=['#FB8C00']), use_container_width=True)
+
+            # FILA 4: Donut de Sólidos (SST)
+            st.write("**🍩 Distribución de SST Promedio por Proceso**")
+            df_sst_proc = df_vert_filtrado.groupby('proceso')['sst'].mean().reset_index()
+            fig_donut = px.pie(df_sst_proc, values='sst', names='proceso', hole=0.5, template="plotly_dark", color_discrete_sequence=px.colors.qualitative.Pastel)
+            st.plotly_chart(fig_donut, use_container_width=True)
+
+            # FILA 5: Tabla de Datos
+            with st.expander("📄 Ver Tabla de Datos Detallada"):
+                st.dataframe(df_vert_filtrado.sort_values('fecha', ascending=False), use_container_width=True)
         else:
-            st.warning("Ajusta los filtros para ver datos de Vertimientos.")
+            st.warning("No hay datos disponibles para los filtros seleccionados.")
 
     with t2:
         st.subheader("🧪 Monitoreo de Agua Tratada (Salida)")
