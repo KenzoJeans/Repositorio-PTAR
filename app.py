@@ -94,6 +94,13 @@ try:
         df_kardex = pd.DataFrame()
 
 # --- BARRA LATERAL ---
+    try:
+        # Logo en la barra lateral (se ajusta automáticamente al ancho de la barra)
+        st.sidebar.image("logo-white-kenzo.png", use_container_width=True)
+        st.sidebar.markdown("---")
+    except Exception:
+        pass
+
     st.sidebar.header("🔍 Filtros Dashboard")
     df_vert_filtrado = df_base_full.copy()
 
