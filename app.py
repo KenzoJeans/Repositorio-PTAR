@@ -4,9 +4,20 @@ import pandas as pd
 import plotly.express as px
 
 # 1. Configuración de página y Estilo
-st.set_page_config(page_title="Sistema Control PTAR", layout="wide", page_icon="💧")
+st.set_page_config(page_title="PTAR - Kenzo Jeans", layout="wide", page_icon="💧")
 st.markdown('<style>div.block-container{padding-top:2rem;}</style>', unsafe_allow_html=True)
-st.markdown('<p style="font-size:30px; font-weight:bold; color:#1E88E5;">🏗️ Gestión Integral - Planta de Tratamiento</p>', unsafe_allow_html=True)
+
+# --- ENCABEZADO CON LOGO KENZO JEANS ---
+col_logo, col_titulo = st.columns([1, 6])
+with col_logo:
+    try:
+        # Se asume que la imagen está en la misma carpeta raíz del repositorio
+        st.image("logo-white-kenzo.png", width=120)
+    except Exception:
+        st.caption("Kenzo Jeans SAS") # Texto alternativo de respaldo
+        
+with col_titulo:
+    st.markdown('<p style="font-size:30px; font-weight:bold; color:#1E88E5;">🏗️ Gestión Integral PTAR - Kenzo Jeans SAS</p>', unsafe_allow_html=True)
 
 # --- CONFIGURACIÓN DE CONEXIÓN ---
 # Asegúrate de reemplazar estas URLs con las tuyas
