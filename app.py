@@ -369,7 +369,7 @@ try:
                             <div style="background:#1E1E1E; padding:20px; border-radius:15px; border-left:10px solid {color}; margin-bottom:20px; border-top: 1px solid #333;">
                                 <h4 style="margin:0; color:white;">{eq}</h4>
                                 <p style="color:{color}; font-weight:bold; margin:5px 0; font-size:13px;">{desc_estado}</p>
-                                <h2 style="margin:10px 0;">❤️ {val_s}/10</h2>
+                                <h2 style="margin:10px 0;"> 📈 {val_s}/10</h2>
                                 <small style="color:#888;">Última revisión: {fecha_val}</small>
                             </div>
                         """, unsafe_allow_html=True)
