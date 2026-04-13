@@ -165,15 +165,85 @@ try:
                 df_ph_p = df_vert_filtrado.groupby('proceso')['ph'].mean().reset_index()
                 st.plotly_chart(px.bar(df_ph_p, x='proceso', y='ph', color='proceso', template="plotly_dark"), use_container_width=True)
 
-            # FILA 3: Gráficas de Temperatura
+           # FILA 3: Análisis de Temperatura con Degradado y Estilo
             col3, col4 = st.columns(2)
             with col3:
-                st.write("**🌡️ Temperatura Promedio Temporal**")
-                st.plotly_chart(px.area(df_vert_filtrado.sort_values('fecha'), x='fecha', y='temp', template="plotly_dark"), use_container_width=True)
+                st.markdown("<h4 style='text-align: center; color: #FFA726;'>🌡️ Tendencia Temperatura Promedio (Degradado)</h4>", unsafe_allow_html=True)
+                
+                # 1. Crear la gráfica de área base con Plotly Express
+                fig_temp_hist = px.area(
+                    df_vert_filtrado.sort_values('fecha'), 
+                    x='fecha', 
+                    y='temp', 
+                    template="plotly_dark",
+                    # Usamos el color base naranja
+                    color_discrete_sequence=['#FF9800'] 
+                )
+
+                # 2. Configurar el Degradado (Linear Gradient)
+                # 'yanchor="bottom"' asegura que el degradado empiece desde la base (0 o min)
+                fig_temp_hist.update_traces(
+                    fillcolor="rgba(255, 152, 0, 0.4)", # Color de relleno con transparencia
+                    line=dict(color="#FFB74D", width=2),   # Color y ancho de la línea del contorno
+                    # Esta es la magia del degradado linear
+                    fillpattern_shape="/",            # Patrón base para habilitar gradientes avanzados
+                    fillpattern_fillmode="replace",
+                    fillpattern_fgcolor="rgba(255, 87, 34, 0.8)", # Color secundario del gradiente (naranja más intenso)
+                    selector=dict(type='scatter')
+                )
+
+                # 3. Pulir el layout (ejes y márgenes)
+                fig_temp_hist.update_layout(
+                    xaxis_title="Fecha", 
+                    yaxis_title="Temperatura (°C)", 
+                    margin=dict(l=20, r=20, t=20, b=20),
+                    # Fondo transparente para que use el del dashboard
+                    paper_bgcolor='rgba(0,0,0,0)', 
+                    plot_bgcolor='rgba(0,0,0,0)'
+                )
+                
+                # Asegurar que el eje Y empiece en un valor lógico si hay datos
+                if not df_vert_filtrado['temp'].isnull().all():
+                    y_min = max(0, df_vert_filtrado['temp'].min() - 5)
+                    y_max = df_vert_filtrado['temp'].max() + 5
+                    fig_temp_hist.update_yaxes(range=[y_min, y_max])
+                
+                st.plotly_chart(fig_temp_hist, use_container_width=True)
+                
             with col4:
-                st.write("**📊 Temperatura por Proceso**")
-                df_temp_p = df_vert_filtrado.groupby('proceso')['temp'].mean().reset_index()
-                st.plotly_chart(px.line(df_temp_p, x='proceso', y='temp', markers=True, template="plotly_dark"), use_container_width=True)
+                st.markdown("<h4 style='text-align: center; color: #FFD54F;'>📊 Temperatura por Proceso (Resplandor)</h4>", unsafe_allow_html=True)
+                df_temp_proc = df_vert_filtrado.groupby('proceso')['temp'].mean().reset_index()
+                
+                # Usamos un amarillo/naranja vibrante para los puntos y líneas
+                fig_temp_proc = px.line(
+                    df_temp_proc, 
+                    x='proceso', 
+                    y='temp', 
+                    markers=True, 
+                    template="plotly_dark", 
+                    color_discrete_sequence=['#FFD54F'] # Amarillo dorado
+                )
+                
+                # Efecto de "Glow" o resplandor en los marcadores y línea
+                fig_temp_proc.update_traces(
+                    mode="markers+lines",
+                    marker=dict(
+                        size=10, 
+                        line=dict(width=2, color='#FF8F00'), # Borde naranja
+                        opacity=0.8
+                    ),
+                    line=dict(width=3)
+                )
+
+                fig_temp_proc.update_layout(
+                    xaxis_title="Proceso", 
+                    yaxis_title="Promedio Temp (°C)",
+                    margin=dict(l=20, r=20, t=20, b=20),
+                    paper_bgcolor='rgba(0,0,0,0)', 
+                    plot_bgcolor='rgba(0,0,0,0)'
+                )
+                
+                st.plotly_chart(fig_temp_proc, use_container_width=True)
 
             # FILA 4: SST y Tabla
             st.write("**🍩 Promedio de Sólidos (SST) por Proceso**")
