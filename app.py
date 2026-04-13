@@ -269,25 +269,21 @@ try:
             st.warning("Ajusta los filtros para ver datos.")
 
     with t2:
-        st.subheader("🧪 Monitoreo de Agua Tratada")
+        st.subheader("🧪 Monitoreo de Agua Tratada - Kenzo Jeans")
         
         if not df_tratada.empty:
             # --- CÁLCULOS DE EFICIENCIA ---
             avg_sst_sal = df_tratada['sst'].mean()
-            # Obtenemos el SST de entrada promedio del dashboard principal para comparar
             sst_ent = df_base_full['sst'].mean() if not df_base_full.empty else 1
             
             # Lógica: SST=0 significa 100% de remoción
-            if avg_sst_sal == 0:
-                remocion = 100.0
-            else:
-                remocion = max(0, (1 - (avg_sst_sal / sst_ent)) * 100)
+            remocion = 100.0 if avg_sst_sal == 0 else max(0, (1 - (avg_sst_sal / sst_ent)) * 100)
 
             # --- TARJETAS (KPIs) ---
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("SST Salida (Prom)", f"{avg_sst_sal:.1f} mg/L", delta=f"{remocion:.1f}% Eficiencia")
-            c2.metric("pH Salida", f"{df_tratada['ph'].mean():.2f}", delta="OK" if 6<=df_tratada['ph'].mean()<=9 else "FUERA")
-            c3.metric("Temp Salida", f"{df_tratada['temp'].mean():.1f} °C", delta="ESTABLE" if df_tratada['temp'].mean()<=40 else "ALTA")
+            c2.metric("pH Salida", f"{df_tratada['ph'].mean():.2f}", delta="CUMPLE" if 6<=df_tratada['ph'].mean()<=9 else "ALERTA")
+            c3.metric("Temp Salida", f"{df_tratada['temp'].mean():.1f} °C", delta="NORMAL" if df_tratada['temp'].mean()<=40 else "ALTA")
             c4.metric("Caudal Total", f"{df_tratada['caudal'].sum():.1f} m³")
 
             st.markdown("---")
@@ -298,61 +294,51 @@ try:
                 st.write("**📈 pH del Agua Tratada (Tiempo)**")
                 fig_ph_t = px.line(df_tratada.sort_values('fecha'), x='fecha', y='ph', 
                                    markers=True, template="plotly_dark", color_discrete_sequence=['#00C853'])
-                # Líneas de referencia para cumplimiento legal
                 fig_ph_t.add_hline(y=6, line_dash="dash", line_color="red", annotation_text="Límite Inf")
                 fig_ph_t.add_hline(y=9, line_dash="dash", line_color="red", annotation_text="Límite Sup")
                 st.plotly_chart(fig_ph_t, use_container_width=True)
 
             with col_b:
                 st.write("**🌡️ Temperatura de Salida (Tiempo)**")
-                # Usamos el naranja que ya definimos para mantener consistencia
                 fig_temp_t = px.area(df_tratada.sort_values('fecha'), x='fecha', y='temp', 
                                      template="plotly_dark", color_discrete_sequence=['#FFA726'])
                 fig_temp_t.add_hline(y=40, line_dash="dash", line_color="red", annotation_text="Máx Permisible")
                 st.plotly_chart(fig_temp_t, use_container_width=True)
 
-            # --- FILA 2: EFICIENCIA Y VOLUMEN (DISEÑO RENOVADO) ---
+            # --- FILA 2: EFICIENCIA (ÁREA APILADA) Y VOLUMEN ---
             col_c, col_d = st.columns(2)
             with col_c:
                 st.write("**💧 Eficiencia de Remoción (Entrada vs Salida)**")
-                
-                # Creamos un dataframe temporal para la visualización de capas
                 df_evolucion = df_tratada.sort_values('fecha').copy()
-                # Traemos el promedio de entrada para comparar punto a punto
                 df_evolucion['SST_Entrada'] = sst_ent 
                 
                 import plotly.graph_objects as go
                 fig_eficiencia = go.Figure()
-
-                # Capa de Entrada (Fondo Gris)
                 fig_eficiencia.add_trace(go.Scatter(
                     x=df_evolucion['fecha'], y=df_evolucion['SST_Entrada'],
-                    fill='tozeroy', name='Entrada (Crudo)',
-                    line_color='rgba(120, 144, 156, 0.5)'
+                    fill='tozeroy', name='Entrada (Crudo)', line_color='rgba(120, 144, 156, 0.5)'
                 ))
-                
-                # Capa de Salida (Frente Verde - Remoción)
                 fig_eficiencia.add_trace(go.Scatter(
                     x=df_evolucion['fecha'], y=df_evolucion['sst'],
-                    fill='tozeroy', name='Salida (Tratada)',
-                    line_color='#00E676'
+                    fill='tozeroy', name='Salida (Tratada)', line_color='#00E676'
                 ))
-
-                fig_eficiencia.update_layout(
-                    template="plotly_dark",
-                    hovermode="x unified",
-                    yaxis_title="SST mg/L",
-                    margin=dict(l=20, r=20, t=20, b=20)
-                )
+                fig_eficiencia.update_layout(template="plotly_dark", hovermode="x unified", margin=dict(l=20, r=20, t=20, b=20))
                 st.plotly_chart(fig_eficiencia, use_container_width=True)
 
             with col_d:
                 st.write("**📊 Volumen Tratado Acumulado**")
-                # Cambiamos barras por área para ver el flujo acumulado
                 fig_vol = px.area(df_tratada.sort_values('fecha'), x='fecha', y='caudal',
                                  template="plotly_dark", color_discrete_sequence=['#29B6F6'])
-                fig_vol.update_traces(line_width=3)
                 st.plotly_chart(fig_vol, use_container_width=True)
+
+            # --- NUEVA FILA: TABLA DE DATOS ---
+            st.markdown("---")
+            st.write("**📄 Detalle de Registros - Agua Tratada**")
+            # Ordenamos por fecha más reciente arriba
+            st.dataframe(df_tratada.sort_values('fecha', ascending=False), use_container_width=True)
+
+        else:
+            st.warning("No hay datos registrados en la hoja de 'Agua Tratada'.")
 
     with t3:
         st.subheader("🛠️ Estado de Equipos")
