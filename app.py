@@ -268,68 +268,85 @@ try:
         else:
             st.warning("Ajusta los filtros para ver datos.")
 
-    # --- PESTAÑA 2: AGUA TRATADA ---
     with t2:
-        st.subheader("🧪 Monitoreo de Agua Tratada - Kenzo Jeans")
-        if df_tratada is not None and not df_tratada.empty:
-            # Cálculos y Métricas
+        st.subheader("🧪 Monitoreo de Agua Tratada")
+        
+        if not df_tratada.empty:
+            # --- CÁLCULOS DE EFICIENCIA ---
             avg_sst_sal = df_tratada['sst'].mean()
+            # Obtenemos el SST de entrada promedio del dashboard principal para comparar
             sst_ent = df_base_full['sst'].mean() if not df_base_full.empty else 1
-            rem = 100.0 if avg_sst_sal == 0 else max(0, (1 - (avg_sst_sal / sst_ent)) * 100)
+            
+            # Lógica: SST=0 significa 100% de remoción
+            if avg_sst_sal == 0:
+                remocion = 100.0
+            else:
+                remocion = max(0, (1 - (avg_sst_sal / sst_ent)) * 100)
 
+            # --- TARJETAS (KPIs) ---
             c1, c2, c3, c4 = st.columns(4)
-            c1.metric("SST Salida", f"{avg_sst_sal:.1f} mg/L", delta=f"{rem:.1f}% Eficiencia")
-            c2.metric("pH Salida", f"{df_tratada['ph'].mean():.2f}")
-            c3.metric("Temp Salida", f"{df_tratada['temp'].mean():.1f} °C")
+            c1.metric("SST Salida (Prom)", f"{avg_sst_sal:.1f} mg/L", delta=f"{remocion:.1f}% Eficiencia")
+            c2.metric("pH Salida", f"{df_tratada['ph'].mean():.2f}", delta="OK" if 6<=df_tratada['ph'].mean()<=9 else "FUERA")
+            c3.metric("Temp Salida", f"{df_tratada['temp'].mean():.1f} °C", delta="ESTABLE" if df_tratada['temp'].mean()<=40 else "ALTA")
             c4.metric("Caudal Total", f"{df_tratada['caudal'].sum():.1f} m³")
 
             st.markdown("---")
-            # Gráficas de Agua Tratada
+
+            # --- FILA 1: COMPORTAMIENTO FÍSICO-QUÍMICO ---
             col_a, col_b = st.columns(2)
             with col_a:
-                st.write("**📈 pH y 🌡️ Temperatura**")
-                st.plotly_chart(px.line(df_tratada.sort_values('fecha'), x='fecha', y=['ph', 'temp'], template="plotly_dark"), use_container_width=True)
-            with col_b:
-                st.write("**💧 Eficiencia de Remoción (Área)**")
-                import plotly.graph_objects as go
-                fig_ef = go.Figure()
-                fig_ef.add_trace(go.Scatter(x=df_tratada['fecha'], y=[sst_ent]*len(df_tratada), fill='tozeroy', name='Entrada', line_color='gray'))
-                fig_ef.add_trace(go.Scatter(x=df_tratada['fecha'], y=df_tratada['sst'], fill='tozeroy', name='Salida', line_color='#00E676'))
-                fig_ef.update_layout(template="plotly_dark", margin=dict(l=10, r=10, t=10, b=10))
-                st.plotly_chart(fig_ef, use_container_width=True)
-            
-            st.write("**📄 Registros Recientes**")
-            st.dataframe(df_tratada.sort_values('fecha', ascending=False), use_container_width=True)
-        else:
-            st.info("No hay datos en Agua Tratada.")
+                st.write("**📈 pH del Agua Tratada (Tiempo)**")
+                fig_ph_t = px.line(df_tratada.sort_values('fecha'), x='fecha', y='ph', 
+                                   markers=True, template="plotly_dark", color_discrete_sequence=['#00C853'])
+                # Líneas de referencia para cumplimiento legal
+                fig_ph_t.add_hline(y=6, line_dash="dash", line_color="red", annotation_text="Límite Inf")
+                fig_ph_t.add_hline(y=9, line_dash="dash", line_color="red", annotation_text="Límite Sup")
+                st.plotly_chart(fig_ph_t, use_container_width=True)
 
-    # --- PESTAÑA 3: MANTENIMIENTO ---
+            with col_b:
+                st.write("**🌡️ Temperatura de Salida (Tiempo)**")
+                # Usamos el naranja que ya definimos para mantener consistencia
+                fig_temp_t = px.area(df_tratada.sort_values('fecha'), x='fecha', y='temp', 
+                                     template="plotly_dark", color_discrete_sequence=['#FFA726'])
+                fig_temp_t.add_hline(y=40, line_dash="dash", line_color="red", annotation_text="Máx Permisible")
+                st.plotly_chart(fig_temp_t, use_container_width=True)
+
+            # --- FILA 2: EFICIENCIA Y VOLUMEN ---
+            col_c, col_d = st.columns(2)
+            with col_c:
+                st.write("**💧 Remoción de Sólidos (Entrada vs Salida)**")
+                # Creamos un comparativo rápido
+                df_comp = pd.DataFrame({
+                    'Etapa': ['Entrada (Crudo)', 'Salida (Tratada)'],
+                    'SST (mg/L)': [sst_ent, avg_sst_sal]
+                })
+                fig_rem = px.bar(df_comp, x='Etapa', y='SST (mg/L)', color='Etapa',
+                                 color_discrete_map={'Entrada (Crudo)': '#78909C', 'Salida (Tratada)': '#00E676'},
+                                 template="plotly_dark")
+                st.plotly_chart(fig_rem, use_container_width=True)
+
+            with col_d:
+                st.write("**📊 Volumen de Agua Tratada por Día**")
+                fig_cau = px.bar(df_tratada.sort_values('fecha'), x='fecha', y='caudal',
+                                 template="plotly_dark", color_discrete_sequence=['#29B6F6'])
+                st.plotly_chart(fig_cau, use_container_width=True)
+
+        else:
+            st.warning("No hay datos registrados en la hoja de 'Agua Tratada'.")
+
     with t3:
-        st.subheader("🛠️ Gestión de Mantenimiento - Kenzo Jeans")
-        if df_manto is not None and not df_manto.empty:
-            # Normalización de columnas para evitar el error 'FECHA'
-            df_manto.columns = df_manto.columns.str.strip().str.upper()
+        st.subheader("🛠️ Estado de Equipos")
+        if not df_manto.empty:
             if 'SALUD' in df_manto.columns:
                 df_manto['SALUD'] = pd.to_numeric(df_manto['SALUD'], errors='coerce').fillna(0)
-            
-            col_f = 'FECHA' if 'FECHA' in df_manto.columns else df_manto.columns[0]
-            
-            # Tarjetas de Equipos
-            if 'EQUIPO' in df_manto.columns:
-                list_eq = df_manto['EQUIPO'].unique()
-                c_cards = st.columns(3)
-                for idx, nombre_eq in enumerate(list_eq):
-                    status_eq = df_manto[df_manto['EQUIPO'] == nombre_eq].iloc[-1]
-                    s_val = status_eq['SALUD']
-                    b_color = "#4CAF50" if s_val >= 8 else "#FFEB3B" if s_val >= 6 else "#F44336"
-                    with c_cards[idx % 3]:
-                        st.markdown(f'<div style="background:#1E1E1E; padding:15px; border-radius:10px; border-left:8px solid {b_color}; margin-bottom:10px;"><b>{nombre_eq}</b><br><span style="font-size:20px;">❤️ {s_val}/10</span></div>', unsafe_allow_html=True)
-
-            st.markdown("---")
-            st.write("**📊 Tendencia de Salud**")
-            st.plotly_chart(px.line(df_manto.sort_values(col_f), x=col_f, y='SALUD', color='EQUIPO', markers=True, template="plotly_dark"), use_container_width=True)
-        else:
-            st.info("No hay datos en Mantenimiento.")
+            equipos = df_manto['EQUIPO'].unique() if 'EQUIPO' in df_manto.columns else []
+            cols_eq = st.columns(3)
+            for i, eq in enumerate(equipos):
+                ult = df_manto[df_manto['EQUIPO'] == eq].iloc[-1]
+                val_s = ult['SALUD']
+                color = "#4CAF50" if val_s >= 8 else "#FFEB3B" if val_s >= 6 else "#F44336"
+                with cols_eq[i % 3]:
+                    st.markdown(f'<div style="background:#1E1E1E; padding:15px; border-radius:10px; border-top:5px solid {color};"><h4>⚙️ {eq}</h4><p style="color:{color};">Salud: {val_s}/10</p></div>', unsafe_allow_html=True)
 
     with t4:
         st.subheader("📦 Inventario y Consumo - Kenzo Jeans")
