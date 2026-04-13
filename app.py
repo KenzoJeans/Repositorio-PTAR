@@ -107,35 +107,48 @@ try:
     except:
         df_kardex = pd.DataFrame()
 
-# --- BARRA LATERAL ---
-    try:
-        # Logo en la barra lateral (se ajusta automáticamente al ancho de la barra)
-        st.sidebar.image("logo-white-kenzo.png", use_container_width=True)
-        st.sidebar.markdown("---")
-    except Exception:
-        pass
+# --- CONFIGURACIÓN Y ESTILO DE BARRA LATERAL ---
+    st.markdown("""
+        <style>
+            [data-testid="stSidebar"] {
+                min-width: 320px;
+                max-width: 350px;
+            }
+        </style>
+    """, unsafe_allow_html=True)
 
-    st.sidebar.header("🔍 Filtros Dashboard")
-    df_vert_filtrado = df_base_full.copy()
+    with st.sidebar:
+        try:
+            st.image("logo-white-kenzo.png", use_container_width=True)
+            st.markdown("---")
+        except Exception:
+            pass
 
-    # 1. Filtro de Fechas
-    if not df_base_full.empty and 'fecha' in df_base_full.columns:
-        min_f, max_f = min(df_base_full['fecha']), max(df_base_full['fecha'])
-        rango = st.sidebar.date_input("Rango de fechas:", [min_f, max_f])
-        if len(rango) == 2:
-            df_vert_filtrado = df_vert_filtrado[(df_vert_filtrado['fecha'] >= rango[0]) & (df_vert_filtrado['fecha'] <= rango[1])]
+        st.header("🔍 Filtros Dashboard")
+        df_vert_filtrado = df_base_full.copy()
 
-    # 2. Filtro de Procesos (Multiselect)
-    if not df_base_full.empty and 'proceso' in df_base_full.columns:
-        procesos = sorted(df_base_full['proceso'].unique().tolist())
-        sel = st.sidebar.multiselect("Seleccionar Procesos:", procesos, default=procesos)
-        df_vert_filtrado = df_vert_filtrado[df_vert_filtrado['proceso'].isin(sel)]
+        # 1. Filtro de Procesos (Subimos este para dar prioridad)
+        if not df_base_full.empty and 'proceso' in df_base_full.columns:
+            procesos = sorted(df_base_full['proceso'].unique().tolist())
+            sel = st.multiselect("Seleccionar Procesos:", procesos, default=procesos)
+            df_vert_filtrado = df_vert_filtrado[df_vert_filtrado['proceso'].isin(sel)]
 
-    # 3. NUEVO: Filtro de Químicos (Escritura)
-    # Se busca en la columna 'quimico' o similar que tengas en tu base de vertimientos
-    filtro_q = st.sidebar.text_input("Filtrar por Químico (escribe el nombre):", "")
-    if filtro_q and 'quimico' in df_vert_filtrado.columns:
-        df_vert_filtrado = df_vert_filtrado[df_vert_filtrado['quimico'].astype(str).str.contains(filtro_q, case=False, na=False)]
+        # 2. Filtro de Químicos (Escritura)
+        filtro_q = st.text_input("Filtrar por Químico:", "")
+        if filtro_q and 'quimico' in df_vert_filtrado.columns:
+            df_vert_filtrado = df_vert_filtrado[df_vert_filtrado['quimico'].astype(str).str.contains(filtro_q, case=False, na=False)]
+
+        st.markdown("---")
+        
+        # 3. Filtro de Fechas (Al final para evitar que el pop-up se corte arriba)
+        if not df_base_full.empty and 'fecha' in df_base_full.columns:
+            st.subheader("📅 Rango de Tiempo")
+            min_f, max_f = min(df_base_full['fecha']), max(df_base_full['fecha'])
+            # Usamos una clave única para evitar conflictos
+            rango = st.date_input("Seleccionar fechas:", [min_f, max_f], key="sidebar_date_range")
+            
+            if len(rango) == 2:
+                df_vert_filtrado = df_vert_filtrado[(df_vert_filtrado['fecha'] >= rango[0]) & (df_vert_filtrado['fecha'] <= rango[1])]
 
     # --- DEFINICIÓN DE PESTAÑAS ---
     t1, t2, t3, t4 = st.tabs(["📊 Dashboard de vertimientos", "🧪 Agua tratada", "🛠️ Mantenimiento", "🧪 Consumo de químicos"])
