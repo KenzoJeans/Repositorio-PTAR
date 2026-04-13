@@ -341,30 +341,62 @@ try:
             st.warning("No hay datos registrados en la hoja de 'Agua Tratada'.")
 
     with t3:
-        st.subheader("🛠️ Gestión de Mantenimiento y Salud de Activos")
+        st.subheader("🛠️ Gestión de Mantenimiento - Kenzo Jeans")
         
         if not df_manto.empty:
-            # --- LIMPIEZA Y PREPARACIÓN ---
+            # --- LIMPIEZA AUTOMÁTICA DE COLUMNAS ---
+            # Esto evita el error 'FECHA' eliminando espacios y estandarizando
+            df_manto.columns = df_manto.columns.str.strip().str.upper()
+            
             if 'SALUD' in df_manto.columns:
                 df_manto['SALUD'] = pd.to_numeric(df_manto['SALUD'], errors='coerce').fillna(0)
             
-            # --- FILA 1: RESUMEN DE ESTADO ---
-            # Calculamos cuántos equipos están en estado crítico (Salud < 6)
-            equipos_criticos = df_manto[df_manto['SALUD'] < 6]['EQUIPO'].nunique()
-            total_equipos = df_manto['EQUIPO'].nunique()
+            # Verificamos si existe la columna FECHA después de limpiar
+            col_fecha = 'FECHA' if 'FECHA' in df_manto.columns else df_manto.columns[0]
             
-            c_m1, c_m2, c_m3 = st.columns(3)
-            with c_m1:
-                st.metric("Total Equipos", total_equipos)
-            with c_m2:
-                # Delta inverso: si hay críticos, sale en rojo
-                st.metric("Equipos en Riesgo", equipos_criticos, delta="- Alerta" if equipos_criticos > 0 else "Todo OK", delta_color="inverse")
-            with c_m3:
-                disponibilidad = ((total_equipos - equipos_criticos) / total_equipos) * 100
-                st.metric("Disponibilidad Planta", f"{disponibilidad:.1f}%")
+            # --- FILA 1: RESUMEN ---
+            total_eq = df_manto['EQUIPO'].nunique() if 'EQUIPO' in df_manto.columns else 0
+            criticos = df_manto[df_manto['SALUD'] < 6]['EQUIPO'].nunique() if 'EQUIPO' in df_manto.columns else 0
+            
+            cm1, cm2, cm3 = st.columns(3)
+            cm1.metric("Total Equipos", total_eq)
+            cm2.metric("En Riesgo", criticos, delta="- Alerta" if criticos > 0 else "OK", delta_color="inverse")
+            cm3.metric("Disponibilidad", f"{((total_eq-criticos)/total_eq)*100:.1f}%" if total_eq > 0 else "0%")
 
             st.markdown("---")
 
+            # --- FILA 2: TARJETAS COLORIDAS ---
+            if 'EQUIPO' in df_manto.columns:
+                equipos = df_manto['EQUIPO'].unique()
+                cols_eq = st.columns(3)
+                
+                for i, eq in enumerate(equipos):
+                    ult_reg = df_manto[df_manto['EQUIPO'] == eq].iloc[-1]
+                    val_s = ult_reg['SALUD']
+                    fecha_val = ult_reg[col_fecha]
+                    
+                    # Colores de semáforo
+                    color = "#4CAF50" if val_s >= 8 else "#FFEB3B" if val_s >= 6 else "#F44336"
+                    
+                    with cols_eq[i % 3]:
+                        st.markdown(f"""
+                            <div style="background:#1E1E1E; padding:20px; border-radius:15px; border-left:10px solid {color}; margin-bottom:20px;">
+                                <h3 style="margin:0;">{eq}</h3>
+                                <p style="color:{color}; font-weight:bold; margin:5px 0;">{"ÓPTIMO" if val_s>=8 else "PREVENTIVO" if val_s>=6 else "CRÍTICO"}</p>
+                                <h2 style="margin:10px 0;">❤️ {val_s}/10</h2>
+                                <small style="color:#888;">Revisión: {fecha_val}</small>
+                            </div>
+                        """, unsafe_allow_html=True)
+
+            # --- FILA 3: GRÁFICA ---
+            st.markdown("---")
+            st.write("**📊 Evolución de Salud**")
+            fig_ev = px.line(df_manto.sort_values(col_fecha), x=col_fecha, y='SALUD', color='EQUIPO',
+                             markers=True, template="plotly_dark")
+            st.plotly_chart(fig_ev, use_container_width=True)
+            
+        else:
+            st.info("Sin datos en Mantenimiento.")
             # --- FILA 2: TARJETAS DE EQUIPOS (MANTENIENDO TU ESTRUCTURA PERO MÁS COLORIDAS) ---
             st.write("**⚙️ Estado Individual de Equipos**")
             equipos = df_manto['EQUIPO'].unique()
