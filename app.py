@@ -311,28 +311,48 @@ try:
                 fig_temp_t.add_hline(y=40, line_dash="dash", line_color="red", annotation_text="Máx Permisible")
                 st.plotly_chart(fig_temp_t, use_container_width=True)
 
-            # --- FILA 2: EFICIENCIA Y VOLUMEN ---
+            # --- FILA 2: EFICIENCIA Y VOLUMEN (DISEÑO RENOVADO) ---
             col_c, col_d = st.columns(2)
             with col_c:
-                st.write("**💧 Remoción de Sólidos (Entrada vs Salida)**")
-                # Creamos un comparativo rápido
-                df_comp = pd.DataFrame({
-                    'Etapa': ['Entrada (Crudo)', 'Salida (Tratada)'],
-                    'SST (mg/L)': [sst_ent, avg_sst_sal]
-                })
-                fig_rem = px.bar(df_comp, x='Etapa', y='SST (mg/L)', color='Etapa',
-                                 color_discrete_map={'Entrada (Crudo)': '#78909C', 'Salida (Tratada)': '#00E676'},
-                                 template="plotly_dark")
-                st.plotly_chart(fig_rem, use_container_width=True)
+                st.write("**💧 Eficiencia de Remoción (Entrada vs Salida)**")
+                
+                # Creamos un dataframe temporal para la visualización de capas
+                df_evolucion = df_tratada.sort_values('fecha').copy()
+                # Traemos el promedio de entrada para comparar punto a punto
+                df_evolucion['SST_Entrada'] = sst_ent 
+                
+                import plotly.graph_objects as go
+                fig_eficiencia = go.Figure()
+
+                # Capa de Entrada (Fondo Gris)
+                fig_eficiencia.add_trace(go.Scatter(
+                    x=df_evolucion['fecha'], y=df_evolucion['SST_Entrada'],
+                    fill='tozeroy', name='Entrada (Crudo)',
+                    line_color='rgba(120, 144, 156, 0.5)'
+                ))
+                
+                # Capa de Salida (Frente Verde - Remoción)
+                fig_eficiencia.add_trace(go.Scatter(
+                    x=df_evolucion['fecha'], y=df_evolucion['sst'],
+                    fill='tozeroy', name='Salida (Tratada)',
+                    line_color='#00E676'
+                ))
+
+                fig_eficiencia.update_layout(
+                    template="plotly_dark",
+                    hovermode="x unified",
+                    yaxis_title="SST mg/L",
+                    margin=dict(l=20, r=20, t=20, b=20)
+                )
+                st.plotly_chart(fig_eficiencia, use_container_width=True)
 
             with col_d:
-                st.write("**📊 Volumen de Agua Tratada por Día**")
-                fig_cau = px.bar(df_tratada.sort_values('fecha'), x='fecha', y='caudal',
+                st.write("**📊 Volumen Tratado Acumulado**")
+                # Cambiamos barras por área para ver el flujo acumulado
+                fig_vol = px.area(df_tratada.sort_values('fecha'), x='fecha', y='caudal',
                                  template="plotly_dark", color_discrete_sequence=['#29B6F6'])
-                st.plotly_chart(fig_cau, use_container_width=True)
-
-        else:
-            st.warning("No hay datos registrados en la hoja de 'Agua Tratada'.")
+                fig_vol.update_traces(line_width=3)
+                st.plotly_chart(fig_vol, use_container_width=True)
 
     with t3:
         st.subheader("🛠️ Estado de Equipos")
