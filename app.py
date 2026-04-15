@@ -265,10 +265,7 @@ try:
             
             st.write("**📄 Tabla de Datos**")
             st.dataframe(df_vert_filtrado, use_container_width=True)
-        else:
-            st.warning("Ajusta los filtros para ver datos.")
-
-    # --- BOTÓN DE DESCARGA (Pegar al final de 'with t1:') ---
+  # --- BOTÓN DE DESCARGA (Pegar al final de 'with t1:') ---
             st.markdown("---")
             st.write("### 📥 Exportar Reporte Operativo")
             
@@ -283,6 +280,8 @@ try:
                 mime='text/csv',
                 help="Haz clic para descargar la tabla de datos según los filtros seleccionados."
             )
+        else:
+            st.warning("Ajusta los filtros para ver datos.")
           
     with t2:
         st.subheader("🧪 Monitoreo de Agua Tratada")
