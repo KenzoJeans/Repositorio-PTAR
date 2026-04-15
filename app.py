@@ -267,16 +267,23 @@ try:
             st.dataframe(df_vert_filtrado, use_container_width=True)
         else:
             st.warning("Ajusta los filtros para ver datos.")
-            # Agregar esto al final de cualquier pestaña
-st.markdown("---")
-csv = df_vert_filtrado.to_csv(index=False).encode('utf-8')
-st.download_button(
-    label="📥 Descargar Reporte en CSV (Excel)",
-    data=csv,
-    file_name='reporte_ptar_kenzo.csv',
-    mime='text/csv',
-)
 
+    # --- BOTÓN DE DESCARGA (Pegar al final de 'with t1:') ---
+            st.markdown("---")
+            st.write("### 📥 Exportar Reporte Operativo")
+            
+            # Convertimos los datos filtrados a CSV
+            # Usamos encoding 'utf-8-sig' para que Excel reconozca tildes y ñ sin problemas
+            csv = df_vert_filtrado.to_csv(index=False).encode('utf-8-sig')
+            
+            st.download_button(
+                label="💾 Descargar Datos Filtrados (Excel/CSV)",
+                data=csv,
+                file_name=f'reporte_ptar_kenzo_{pd.Timestamp.now().strftime("%Y-%m-%d")}.csv',
+                mime='text/csv',
+                help="Haz clic para descargar la tabla de datos según los filtros seleccionados."
+            )
+          
     with t2:
         st.subheader("🧪 Monitoreo de Agua Tratada")
         
