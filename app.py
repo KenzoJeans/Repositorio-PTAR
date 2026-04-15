@@ -278,6 +278,35 @@ try:
                 file_name=f'reporte_ptar_kenzo_{pd.Timestamp.now().strftime("%Y-%m-%d")}.csv',
                 mime='text/csv'
             )
+    # --- SECCIÓN DE EXPORTACIÓN FINAL (Al final de with t1:) ---
+            st.markdown("---")
+            st.write("### 📂 Generar Informes")
+            
+            col_exp1, col_exp2 = st.columns(2)
+            
+            with col_exp1:
+                # El botón de CSV que ya probamos (con punto y coma para Excel)
+                csv = df_vert_filtrado.to_csv(index=False, sep=';').encode('utf-8-sig')
+                st.download_button(
+                    label="📊 Descargar Excel (CSV)",
+                    data=csv,
+                    file_name=f'datos_ptar_{pd.Timestamp.now().strftime("%Y-%m-%d")}.csv',
+                    mime='text/csv'
+                )
+                
+            with col_exp2:
+                # Aquí iría el botón de PDF
+                # Nota: Esta función requiere que 'fig_dona' y 'df_vert' estén definidos antes
+                try:
+                    pdf_data = generar_pdf(df_vert_filtrado, fig_dona)
+                    st.download_button(
+                        label="📄 Descargar Informe PDF",
+                        data=pdf_data,
+                        file_name=f'reporte_visual_{pd.Timestamp.now().strftime("%Y-%m-%d")}.pdf',
+                        mime='application/pdf'
+                    )
+                except NameError:
+                    st.info("💡 El PDF visual estará disponible cuando se carguen todas las gráficas.")
         else:
             st.warning("Ajusta los filtros para ver datos.")
           
