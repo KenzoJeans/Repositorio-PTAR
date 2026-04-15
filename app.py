@@ -267,6 +267,15 @@ try:
             st.dataframe(df_vert_filtrado, use_container_width=True)
         else:
             st.warning("Ajusta los filtros para ver datos.")
+            # Agregar esto al final de cualquier pestaña
+st.markdown("---")
+csv = df_vert_filtrado.to_csv(index=False).encode('utf-8')
+st.download_button(
+    label="📥 Descargar Reporte en CSV (Excel)",
+    data=csv,
+    file_name='reporte_ptar_kenzo.csv',
+    mime='text/csv',
+)
 
     with t2:
         st.subheader("🧪 Monitoreo de Agua Tratada")
