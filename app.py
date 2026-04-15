@@ -265,20 +265,18 @@ try:
             
             st.write("**📄 Tabla de Datos**")
             st.dataframe(df_vert_filtrado, use_container_width=True)
-  # --- BOTÓN DE DESCARGA (Pegar al final de 'with t1:') ---
+  # --- BOTÓN DE DESCARGA (Versión optimizada para Excel local) ---
             st.markdown("---")
             st.write("### 📥 Exportar Reporte Operativo")
             
-            # Convertimos los datos filtrados a CSV
-            # Usamos encoding 'utf-8-sig' para que Excel reconozca tildes y ñ sin problemas
-            csv = df_vert_filtrado.to_csv(index=False).encode('utf-8-sig')
+            # Cambiamos sep=',' por sep=';' para que Excel lo reconozca de inmediato
+            csv = df_vert_filtrado.to_csv(index=False, sep=';').encode('utf-8-sig')
             
             st.download_button(
-                label="💾 Descargar Datos Filtrados (Excel/CSV)",
+                label="💾 Descargar Reporte en Excel (CSV)",
                 data=csv,
                 file_name=f'reporte_ptar_kenzo_{pd.Timestamp.now().strftime("%Y-%m-%d")}.csv',
-                mime='text/csv',
-                help="Haz clic para descargar la tabla de datos según los filtros seleccionados."
+                mime='text/csv'
             )
         else:
             st.warning("Ajusta los filtros para ver datos.")
