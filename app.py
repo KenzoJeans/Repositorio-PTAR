@@ -421,10 +421,12 @@ try:
         STOCK_INICIAL = {"SULFATO DE ALUMINIO": 119, "CAL": 79, "POLIMERO": 24.118}
         
         if not df_kardex.empty:
+            # Normalización de datos
             df_kardex.columns = df_kardex.columns.str.strip().str.upper()
             df_kardex['CANTIDAD'] = pd.to_numeric(df_kardex['CANTIDAD'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
-            
-            # --- FILA 1: KPIs ---
+            df_kardex['FECHA'] = pd.to_datetime(df_kardex['FECHA'], errors='coerce').dt.date
+
+            # --- FILA 1: KPIs DE STOCK ACTUAL ---
             df_kardex['NETO'] = df_kardex.apply(lambda x: x['CANTIDAD'] if x['QUE PROCESO VA A REALIZAR'] == 'ENTRADA' else -x['CANTIDAD'], axis=1)
             resumen_inv = df_kardex.groupby('NOMBRE DEL QUIMICO')['NETO'].sum().to_dict()
             
@@ -437,13 +439,33 @@ try:
 
             st.markdown("---")
 
+            # --- NUEVA SECCIÓN: TARJETAS DE SALIDA SELECCIONADAS POR FECHA ---
+            st.write("**📅 Total de Salidas en el Rango Seleccionado**")
+            # Obtenemos el rango desde la barra lateral (usando el key definido antes)
+            if 'sidebar_date_range' in st.session_state and len(st.session_state.sidebar_date_range) == 2:
+                f_inicio, f_fin = st.session_state.sidebar_date_range
+                df_k_filtrado = df_kardex[(df_kardex['FECHA'] >= f_inicio) & (df_kardex['FECHA'] <= f_fin)]
+                df_salidas_rango = df_k_filtrado[df_k_filtrado['QUE PROCESO VA A REALIZAR'] == 'SALIDA']
+                
+                sq1, sq2, sq3 = st.columns(3)
+                for i, prod in enumerate(STOCK_INICIAL.keys()):
+                    total_sal = df_salidas_rango[df_salidas_rango['NOMBRE DEL QUIMICO'] == prod]['CANTIDAD'].sum()
+                    col_sq = [sq1, sq2, sq3][i]
+                    col_sq.markdown(f"""
+                        <div style="background:#262626; padding:15px; border-radius:10px; text-align:center; border:1px solid #444;">
+                            <p style="color:#888; margin:0; font-size:14px;">Salidas: {prod}</p>
+                            <h3 style="margin:5px 0; color:#FF5252;">{total_sal:.2f} kg</h3>
+                        </div>
+                    """, unsafe_allow_html=True)
+            st.markdown("---")
+
             # --- FILA 2: DONA Y RESUMEN ---
             col_dona, col_info = st.columns([1.5, 1])
-            df_salidas = df_kardex[df_kardex['QUE PROCESO VA A REALIZAR'] == 'SALIDA']
-            consumo_total = df_salidas.groupby('NOMBRE DEL QUIMICO')['CANTIDAD'].sum().reset_index()
+            df_salidas_full = df_kardex[df_kardex['QUE PROCESO VA A REALIZAR'] == 'SALIDA']
+            consumo_total = df_salidas_full.groupby('NOMBRE DEL QUIMICO')['CANTIDAD'].sum().reset_index()
 
             with col_dona:
-                st.write("**🍩 Distribución de Consumo**")
+                st.write("**🍩 Distribución de Consumo Histórico**")
                 fig_dona = px.pie(consumo_total, values='CANTIDAD', names='NOMBRE DEL QUIMICO', hole=0.6,
                                  color_discrete_sequence=['#2E7D32', '#FBC02D', '#1565C0'], template="plotly_dark")
                 fig_dona.update_layout(margin=dict(l=20, r=20, t=20, b=20), height=300)
@@ -452,17 +474,15 @@ try:
             with col_info:
                 st.write("**💡 Estado de Bodega**")
                 if not consumo_total.empty:
-                    st.info("El sistema está monitoreando las salidas diarias para predecir agotamiento de stock.")
-                    st.success("Sugerencia: Revisar niveles de Cal el próximo lunes.")
+                    st.info("El sistema monitorea salidas para predecir agotamiento.")
+                    st.success("Sugerencia: Revisar niveles de Cal semanalmente.")
 
-            # --- FILA 3: TABLA DETALLADA (CORREGIDA SIN MATPLOTLIB) ---
+            # --- FILA 3: TABLA DETALLADA ---
             st.markdown("---")
             st.write("**📋 Historial Detallado de Movimientos**")
-            
             df_view = df_kardex[['FECHA', 'NOMBRE DEL QUIMICO', 'QUE PROCESO VA A REALIZAR', 'CANTIDAD']].copy()
             df_view = df_view.sort_values('FECHA', ascending=False)
             
-            # Usamos st.dataframe directamente con configuración de columnas para el estilo
             st.dataframe(
                 df_view,
                 column_config={
@@ -472,9 +492,5 @@ try:
                 use_container_width=True,
                 hide_index=True
             )
-
         else:
             st.warning("No se detectaron datos en la hoja de Químicos.")
-
-except Exception as e:
-    st.error(f"Se detectó un error: {e}")
