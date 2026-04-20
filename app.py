@@ -421,7 +421,6 @@ try:
         STOCK_INICIAL = {"SULFATO DE ALUMINIO": 119, "CAL": 79, "POLIMERO": 24.118}
         
         if not df_kardex.empty:
-            # Normalización de datos
             df_kardex.columns = df_kardex.columns.str.strip().str.upper()
             df_kardex['CANTIDAD'] = pd.to_numeric(df_kardex['CANTIDAD'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
             df_kardex['FECHA'] = pd.to_datetime(df_kardex['FECHA'], errors='coerce').dt.date
@@ -441,7 +440,6 @@ try:
 
             # --- NUEVA SECCIÓN: TARJETAS DE SALIDA SELECCIONADAS POR FECHA ---
             st.write("**📅 Total de Salidas en el Rango Seleccionado**")
-            # Obtenemos el rango desde la barra lateral (usando el key definido antes)
             if 'sidebar_date_range' in st.session_state and len(st.session_state.sidebar_date_range) == 2:
                 f_inicio, f_fin = st.session_state.sidebar_date_range
                 df_k_filtrado = df_kardex[(df_kardex['FECHA'] >= f_inicio) & (df_kardex['FECHA'] <= f_fin)]
@@ -459,7 +457,7 @@ try:
                     """, unsafe_allow_html=True)
             st.markdown("---")
 
-            # --- FILA 2: DONA Y RESUMEN ---
+            # --- FILA 2: DONA Y TABLA ---
             col_dona, col_info = st.columns([1.5, 1])
             df_salidas_full = df_kardex[df_kardex['QUE PROCESO VA A REALIZAR'] == 'SALIDA']
             consumo_total = df_salidas_full.groupby('NOMBRE DEL QUIMICO')['CANTIDAD'].sum().reset_index()
@@ -474,23 +472,18 @@ try:
             with col_info:
                 st.write("**💡 Estado de Bodega**")
                 if not consumo_total.empty:
-                    st.info("El sistema monitorea salidas para predecir agotamiento.")
+                    st.info("Monitoreo de inventario activo.")
                     st.success("Sugerencia: Revisar niveles de Cal semanalmente.")
 
-            # --- FILA 3: TABLA DETALLADA ---
             st.markdown("---")
             st.write("**📋 Historial Detallado de Movimientos**")
             df_view = df_kardex[['FECHA', 'NOMBRE DEL QUIMICO', 'QUE PROCESO VA A REALIZAR', 'CANTIDAD']].copy()
             df_view = df_view.sort_values('FECHA', ascending=False)
             
-            st.dataframe(
-                df_view,
-                column_config={
-                    "CANTIDAD": st.column_config.NumberColumn("Cantidad (kg)", format="%.2f"),
-                    "QUE PROCESO VA A REALIZAR": st.column_config.TextColumn("Tipo Movimiento")
-                },
-                use_container_width=True,
-                hide_index=True
-            )
+            st.dataframe(df_view, use_container_width=True, hide_index=True)
         else:
             st.warning("No se detectaron datos en la hoja de Químicos.")
+
+# --- ESTA ES LA PARTE QUE CIERRA EL TRY INICIAL Y EVITA EL ERROR ---
+except Exception as e:
+    st.error(f"Se detectó un error: {e}")
