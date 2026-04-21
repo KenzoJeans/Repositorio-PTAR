@@ -157,15 +157,21 @@ try:
 
         st.markdown("---")
         
-        # 3. Filtro de Fechas (Al final para evitar que el pop-up se corte arriba)
+        # 3. Filtro de Fechas mejorado
         if not df_base_full.empty and 'fecha' in df_base_full.columns:
             st.subheader("📅 Rango de Tiempo")
-            min_f, max_f = min(df_base_full['fecha']), max(df_base_full['fecha'])
-            # Usamos una clave única para evitar conflictos
+            # Obtenemos el mínimo y máximo real de los datos
+            min_f = df_base_full['fecha'].min()
+            max_f = df_base_full['fecha'].max()
+            
             rango = st.date_input("Seleccionar fechas:", [min_f, max_f], key="sidebar_date_range")
             
-            if len(rango) == 2:
-                df_vert_filtrado = df_vert_filtrado[(df_vert_filtrado['fecha'] >= rango[0]) & (df_vert_filtrado['fecha'] <= rango[1])]
+            # Solo filtramos si el usuario ya seleccionó fecha de inicio y fin
+            if isinstance(rango, list) and len(rango) == 2:
+                start_date = pd.to_datetime(rango[0])
+                end_date = pd.to_datetime(rango[1])
+                df_vert_filtrado = df_vert_filtrado[(df_vert_filtrado['fecha'] >= start_date) & 
+                                                    (df_vert_filtrado['fecha'] <= end_date)]
 
     # --- DEFINICIÓN DE PESTAÑAS ---
     t1, t2, t3, t4 = st.tabs(["📊 Dashboard de vertimientos", "🧪 Agua tratada", "🛠️ Mantenimiento", "🧪 Consumo de químicos"])
