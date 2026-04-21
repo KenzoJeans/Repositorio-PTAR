@@ -57,7 +57,24 @@ def limpiar_datos_ptar(df):
         'Proceso a reportar': 'proceso'
     }
     
-    nuevos_nombres = {}
+    # Creamos el diccionario de nombres nuevos basado en lo que encuentre en el Excel
+    nuevos_nombres = {col: mapeo[col] for col in df.columns if col in mapeo}
+    df = df.rename(columns=nuevos_nombres)
+
+    columnas_num = ['ph', 'temp', 'sst', 'cond', 'caudal']
+    for col in columnas_num:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+    
+    # --- CORRECCIÓN CRÍTICA DE FECHAS ---
+    if 'fecha' in df.columns:
+        df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce')
+    elif 'fecha_h' in df.columns:
+        df['fecha'] = pd.to_datetime(df['fecha_h'], errors='coerce')
+    
+    # Eliminamos filas sin fecha para evitar errores en las gráficas
+    df = df.dropna(subset=['fecha'])
+    return df
     for col in df.columns:
         if col in mapeo:
             target = mapeo[col]
