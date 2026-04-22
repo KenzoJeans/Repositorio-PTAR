@@ -140,15 +140,38 @@ try:
 
         st.markdown("---")
         
-        # 3. Filtro de Fechas (Al final para evitar que el pop-up se corte arriba)
+        # 3. Filtro de Fechas (Optimizado para evitar desaparición de datos)
         if not df_base_full.empty and 'fecha' in df_base_full.columns:
             st.subheader("📅 Rango de Tiempo")
-            min_f, max_f = min(df_base_full['fecha']), max(df_base_full['fecha'])
-            # Usamos una clave única para evitar conflictos
-            rango = st.date_input("Seleccionar fechas:", [min_f, max_f], key="sidebar_date_range")
             
-            if len(rango) == 2:
-                df_vert_filtrado = df_vert_filtrado[(df_vert_filtrado['fecha'] >= rango[0]) & (df_vert_filtrado['fecha'] <= rango[1])]
+            # Obtenemos límites reales de los datos
+            min_f = df_base_full['fecha'].min()
+            max_f = df_base_full['fecha'].max()
+            
+            # Widget de fecha
+            rango = st.date_input(
+                "Seleccionar fechas:", 
+                [min_f, max_f], 
+                min_value=min_f, 
+                max_value=max_f,
+                key="sidebar_date_range"
+            )
+            
+            # Solo filtramos si el rango está completo (tiene fecha inicio y fin)
+            if isinstance(rango, (list, tuple)) and len(rango) == 2:
+                inicio, fin = rango
+                # Forzamos la comparación de objetos date
+                df_vert_filtrado = df_vert_filtrado[
+                    (df_vert_filtrado['fecha'] >= inicio) & 
+                    (df_vert_filtrado['fecha'] <= fin)
+                ]
+                
+                # Sincronizamos también el dataframe de Agua Tratada para la Pestaña 2
+                if not df_tratada.empty and 'fecha' in df_tratada.columns:
+                    df_tratada = df_tratada[
+                        (df_tratada['fecha'] >= inicio) & 
+                        (df_tratada['fecha'] <= fin)
+                    ]
 
     # --- DEFINICIÓN DE PESTAÑAS ---
     t1, t2, t3, t4 = st.tabs(["📊 Dashboard de vertimientos", "🧪 Agua tratada", "🛠️ Mantenimiento", "🧪 Consumo de químicos"])
