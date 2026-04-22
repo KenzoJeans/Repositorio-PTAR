@@ -455,27 +455,31 @@ try:
                 alerta = "⚠️ REABASTECER" if actual < 20 else "✅ STOCK OK"
                 col_k.metric(prod, f"{actual:.1f} kg", delta=alerta, delta_color="inverse" if actual < 20 else "normal")
                 
-                # --- SECCIÓN: CONSUMO EN EL PERIODO (CORREGIDA) ---
+                # --- SECCIÓN: CONSUMO EN EL PERIODO (VERSIÓN ULTRA-ROBUSTA) ---
             st.markdown("### 📊 Consumo en el Periodo Seleccionado")
             
             df_k_periodo = df_kardex.copy()
-            if isinstance(rango, (list, tuple)) and len(rango) == 2:
-                # 1. Asegurar formato de fecha
-                df_k_periodo['FECHA'] = pd.to_datetime(df_k_periodo['FECHA'], errors='coerce').dt.date
-                df_k_periodo = df_k_periodo[(df_k_periodo['FECHA'] >= rango[0]) & (df_k_periodo['FECHA'] <= rango[1])]
-                
-                # 2. LIMPIEZA CRÍTICA DE NÚMEROS (Puntos y Comas)
-                # Convertimos a string, quitamos espacios, cambiamos coma por punto y pasamos a número
-                df_k_periodo['CANTIDAD'] = (
-                    df_k_periodo['CANTIDAD']
-                    .astype(str)
-                    .str.replace(',', '.')
-                    .str.strip()
-                )
-                df_k_periodo['CANTIDAD'] = pd.to_numeric(df_k_periodo['CANTIDAD'], errors='coerce').fillna(0)
+            
+            # 1. LIMPIEZA DE NÚMEROS: Forzamos conversión a decimal (float)
+            df_k_periodo['CANTIDAD'] = (
+                df_k_periodo['CANTIDAD']
+                .astype(str)
+                .str.replace(',', '.')
+                .str.replace(r'[^0-9.]', '', regex=True) # Elimina cualquier caracter no numérico
+            )
+            df_k_periodo['CANTIDAD'] = pd.to_numeric(df_k_periodo['CANTIDAD'], errors='coerce').fillna(0)
 
+            # 2. LIMPIEZA DE FECHAS: Aseguramos que Pandas las entienda bien
+            df_k_periodo['FECHA'] = pd.to_datetime(df_k_periodo['FECHA'], dayfirst=True, errors='coerce').dt.date
+
+            if isinstance(rango, (list, tuple)) and len(rango) == 2:
+                inicio, fin = rango
+                # Filtramos el periodo
+                df_k_periodo = df_k_periodo[(df_k_periodo['FECHA'] >= inicio) & (df_k_periodo['FECHA'] <= fin)]
+                
                 # 3. Filtrar SALIDAS y Sumar
-                df_salidas_periodo = df_k_periodo[df_k_periodo['QUE PROCESO VA A REALIZAR'] == 'SALIDA']
+                # Usamos .str.upper() por si acaso en la hoja escribieron 'salida' en minúsculas
+                df_salidas_periodo = df_k_periodo[df_k_periodo['QUE PROCESO VA A REALIZAR'].astype(str).str.upper() == 'SALIDA']
                 consumo_periodo = df_salidas_periodo.groupby('NOMBRE DEL QUIMICO')['CANTIDAD'].sum().to_dict()
                 
                 # Renderizado de tarjetas
@@ -485,10 +489,13 @@ try:
 
                 for i, quimico in enumerate(quimicos_objetivo):
                     total_salida = consumo_periodo.get(quimico, 0.0)
+                    # Contamos cuántos registros sumaron para este químico
+                    n_registros = len(df_salidas_periodo[df_salidas_periodo['NOMBRE DEL QUIMICO'] == quimico])
+                    
                     columnas_salida[i].metric(
                         label=f"Salidas: {quimico}",
-                        value=f"{total_salida:.2f} kg", # Ahora mostrará decimales correctamente
-                        delta=f"{len(df_salidas_periodo[df_salidas_periodo['NOMBRE DEL QUIMICO']==quimico])} registros",
+                        value=f"{total_salida:.2f} kg",
+                        delta=f"{n_registros} registros",
                         delta_color="normal"
                     )
             
