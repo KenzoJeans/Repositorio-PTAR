@@ -2,6 +2,7 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import plotly.express as px
+from datetime import date, datetime  # <--- ESTA ES LA LÍNEA QUE FALTA
 
 # 1. Configuración de página y Estilo
 st.set_page_config(page_title="SGA - PTAR - Kenzo Jeans", layout="wide", page_icon="💧")
