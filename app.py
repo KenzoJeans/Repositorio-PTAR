@@ -455,33 +455,42 @@ try:
                 alerta = "⚠️ REABASTECER" if actual < 20 else "✅ STOCK OK"
                 col_k.metric(prod, f"{actual:.1f} kg", delta=alerta, delta_color="inverse" if actual < 20 else "normal")
                 
-                # --- NUEVA SECCIÓN: CONSUMO EN EL PERIODO ---
+                # --- SECCIÓN: CONSUMO EN EL PERIODO (CORREGIDA) ---
             st.markdown("### 📊 Consumo en el Periodo Seleccionado")
             
-            # 1. Filtramos el Kardex por el rango de fechas del sidebar
             df_k_periodo = df_kardex.copy()
             if isinstance(rango, (list, tuple)) and len(rango) == 2:
-                # Aseguramos que la columna FECHA del kardex sea tipo date para comparar
+                # 1. Asegurar formato de fecha
                 df_k_periodo['FECHA'] = pd.to_datetime(df_k_periodo['FECHA'], errors='coerce').dt.date
                 df_k_periodo = df_k_periodo[(df_k_periodo['FECHA'] >= rango[0]) & (df_k_periodo['FECHA'] <= rango[1])]
-            
-            # 2. Filtramos solo las SALIDAS
-            df_salidas_periodo = df_k_periodo[df_k_periodo['QUE PROCESO VA A REALIZAR'] == 'SALIDA']
-            consumo_periodo = df_salidas_periodo.groupby('NOMBRE DEL QUIMICO')['CANTIDAD'].sum().to_dict()
-            
-            # 3. Renderizamos las 3 tarjetas de salidas
-            cs1, cs2, cs3 = st.columns(3)
-            quimicos_objetivo = ["SULFATO DE ALUMINIO", "CAL", "POLIMERO"]
-            columnas_salida = [cs1, cs2, cs3]
-
-            for i, quimico in enumerate(quimicos_objetivo):
-                total_salida = consumo_periodo.get(quimico, 0.0)
-                columnas_salida[i].metric(
-                    label=f"Salidas: {quimico}",
-                    value=f"{total_salida:.2f} kg",
-                    delta="Consumo detectado" if total_salida > 0 else "Sin consumo",
-                    delta_color="inverse" if total_salida > 0 else "normal"
+                
+                # 2. LIMPIEZA CRÍTICA DE NÚMEROS (Puntos y Comas)
+                # Convertimos a string, quitamos espacios, cambiamos coma por punto y pasamos a número
+                df_k_periodo['CANTIDAD'] = (
+                    df_k_periodo['CANTIDAD']
+                    .astype(str)
+                    .str.replace(',', '.')
+                    .str.strip()
                 )
+                df_k_periodo['CANTIDAD'] = pd.to_numeric(df_k_periodo['CANTIDAD'], errors='coerce').fillna(0)
+
+                # 3. Filtrar SALIDAS y Sumar
+                df_salidas_periodo = df_k_periodo[df_k_periodo['QUE PROCESO VA A REALIZAR'] == 'SALIDA']
+                consumo_periodo = df_salidas_periodo.groupby('NOMBRE DEL QUIMICO')['CANTIDAD'].sum().to_dict()
+                
+                # Renderizado de tarjetas
+                cs1, cs2, cs3 = st.columns(3)
+                quimicos_objetivo = ["SULFATO DE ALUMINIO", "CAL", "POLIMERO"]
+                columnas_salida = [cs1, cs2, cs3]
+
+                for i, quimico in enumerate(quimicos_objetivo):
+                    total_salida = consumo_periodo.get(quimico, 0.0)
+                    columnas_salida[i].metric(
+                        label=f"Salidas: {quimico}",
+                        value=f"{total_salida:.2f} kg", # Ahora mostrará decimales correctamente
+                        delta=f"{len(df_salidas_periodo[df_salidas_periodo['NOMBRE DEL QUIMICO']==quimico])} registros",
+                        delta_color="normal"
+                    )
             
             st.markdown("---")
 
