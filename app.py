@@ -457,7 +457,35 @@ try:
                 col_k = [ck1, ck2, ck3][i]
                 alerta = "⚠️ REABASTECER" if actual < 20 else "✅ STOCK OK"
                 col_k.metric(prod, f"{actual:.1f} kg", delta=alerta, delta_color="inverse" if actual < 20 else "normal")
+                
+                # --- NUEVA SECCIÓN: CONSUMO EN EL PERIODO ---
+            st.markdown("### 📊 Consumo en el Periodo Seleccionado")
+            
+            # 1. Filtramos el Kardex por el rango de fechas del sidebar
+            df_k_periodo = df_kardex.copy()
+            if isinstance(rango, (list, tuple)) and len(rango) == 2:
+                # Aseguramos que la columna FECHA del kardex sea tipo date para comparar
+                df_k_periodo['FECHA'] = pd.to_datetime(df_k_periodo['FECHA'], errors='coerce').dt.date
+                df_k_periodo = df_k_periodo[(df_k_periodo['FECHA'] >= rango[0]) & (df_k_periodo['FECHA'] <= rango[1])]
+            
+            # 2. Filtramos solo las SALIDAS
+            df_salidas_periodo = df_k_periodo[df_k_periodo['QUE PROCESO VA A REALIZAR'] == 'SALIDA']
+            consumo_periodo = df_salidas_periodo.groupby('NOMBRE DEL QUIMICO')['CANTIDAD'].sum().to_dict()
+            
+            # 3. Renderizamos las 3 tarjetas de salidas
+            cs1, cs2, cs3 = st.columns(3)
+            quimicos_objetivo = ["SULFATO DE ALUMINIO", "CAL", "POLIMERO"]
+            columnas_salida = [cs1, cs2, cs3]
 
+            for i, quimico in enumerate(quimicos_objetivo):
+                total_salida = consumo_periodo.get(quimico, 0.0)
+                columnas_salida[i].metric(
+                    label=f"Salidas: {quimico}",
+                    value=f"{total_salida:.2f} kg",
+                    delta="Consumo detectado" if total_salida > 0 else "Sin consumo",
+                    delta_color="inverse" if total_salida > 0 else "normal"
+                )
+            
             st.markdown("---")
 
             # --- FILA 2: DONA Y RESUMEN ---
