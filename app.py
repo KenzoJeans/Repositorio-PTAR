@@ -140,38 +140,34 @@ try:
 
         st.markdown("---")
         
-        # 3. Filtro de Fechas (Optimizado para evitar desaparición de datos)
+        # 3. Filtro de Fechas (Liberado para permitir navegación en todos los meses)
         if not df_base_full.empty and 'fecha' in df_base_full.columns:
             st.subheader("📅 Rango de Tiempo")
             
-            # Obtenemos límites reales de los datos
-            min_f = df_base_full['fecha'].min()
-            max_f = df_base_full['fecha'].max()
+            # Definimos límites más amplios (desde el 1 de enero hasta hoy)
+            # Esto permite seleccionar marzo/abril aunque la hoja base sea antigua
+            limite_inferior = date(2024, 1, 1) 
+            limite_superior = date.today()
             
-            # Widget de fecha
+            # Valores por defecto para el selector
+            def_start = df_base_full['fecha'].min()
+            def_end = df_base_full['fecha'].max()
+            
             rango = st.date_input(
                 "Seleccionar fechas:", 
-                [min_f, max_f], 
-                min_value=min_f, 
-                max_value=max_f,
+                [def_start, def_end], 
+                min_value=limite_inferior, 
+                max_value=limite_superior,
                 key="sidebar_date_range"
             )
             
-            # Solo filtramos si el rango está completo (tiene fecha inicio y fin)
             if isinstance(rango, (list, tuple)) and len(rango) == 2:
                 inicio, fin = rango
-                # Forzamos la comparación de objetos date
-                df_vert_filtrado = df_vert_filtrado[
-                    (df_vert_filtrado['fecha'] >= inicio) & 
-                    (df_vert_filtrado['fecha'] <= fin)
-                ]
+                df_vert_filtrado = df_vert_filtrado[(df_vert_filtrado['fecha'] >= inicio) & (df_vert_filtrado['fecha'] <= fin)]
                 
-                # Sincronizamos también el dataframe de Agua Tratada para la Pestaña 2
+                # Sincronizamos Agua Tratada
                 if not df_tratada.empty and 'fecha' in df_tratada.columns:
-                    df_tratada = df_tratada[
-                        (df_tratada['fecha'] >= inicio) & 
-                        (df_tratada['fecha'] <= fin)
-                    ]
+                    df_tratada = df_tratada[(df_tratada['fecha'] >= inicio) & (df_tratada['fecha'] <= fin)]
 
     # --- DEFINICIÓN DE PESTAÑAS ---
     t1, t2, t3, t4 = st.tabs(["📊 Dashboard de vertimientos", "🧪 Agua tratada", "🛠️ Mantenimiento", "🧪 Consumo de químicos"])
