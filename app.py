@@ -256,25 +256,15 @@ try:
                 df_temp_proc = df_vert_filtrado.groupby('proceso')['temp'].mean().reset_index()
                 
                 # Usamos un amarillo/naranja vibrante para los puntos y líneas
-                fig_temp_proc = px.line(
+                fig_temp_proc = px.bar(
                     df_temp_proc, 
                     x='proceso', 
-                    y='temp', 
-                    markers=True, 
-                    template="plotly_dark", 
-                    color_discrete_sequence=['#FFD54F'] # Amarillo dorado
-                )
-                
-                # Efecto de "Glow" o resplandor en los marcadores y línea
-                fig_temp_proc.update_traces(
-                    mode="markers+lines",
-                    marker=dict(
-                        size=10, 
-                        line=dict(width=2, color='#FF8F00'), # Borde naranja
-                        opacity=0.8
-                    ),
-                    line=dict(width=3)
-                )
+                    y='temp',
+                    color='proceso',
+                    template="plotly_dark",
+                    color_discrete_sequence=['#FFD54F', '#FFA726', '#FF7043', '#66BB6A']
+)
+        
 
                 fig_temp_proc.update_layout(
                     xaxis_title="Proceso", 
