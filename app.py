@@ -443,7 +443,9 @@ try:
 
             # --- 4. TABLA DE BITÁCORA ---
             with st.expander("📝 Ver historial completo de intervenciones"):
-                st.dataframe(df_manto.sort_values(col_fecha_m, ascending=False), use_container_width=True)
+                cols_ocultar = ['MARCA TEMPORAL']
+            cols_mostrar = [c for c in df_manto.columns if c not in cols_ocultar]
+            st.dataframe(df_manto[cols_mostrar].sort_values(col_fecha_m, ascending=False), use_container_width=True)
     with t4:
         st.subheader("📦 Gestión de Inventarios y Consumo - Kenzo Jeans")
         
