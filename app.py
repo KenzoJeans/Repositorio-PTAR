@@ -356,15 +356,15 @@ try:
         st.subheader("🛠️ Estado de Equipos - Kenzo Jeans")
         
         if not df_manto.empty:
-    # ← PRIMERO normalizar columnas a mayúsculas
-    df_manto.columns = df_manto.columns.str.strip().str.upper()
-    col_fecha_m_sidebar = 'FECHA' if 'FECHA' in df_manto.columns else df_manto.columns[0]
-    df_manto[col_fecha_m_sidebar] = pd.to_datetime(
-        df_manto[col_fecha_m_sidebar], dayfirst=True, errors='coerce'
-    ).dt.date
-    df_manto = df_manto[
-        (df_manto[col_fecha_m_sidebar] >= inicio) & 
-        (df_manto[col_fecha_m_sidebar] <= fin)
+        # ← PRIMERO normalizar columnas a mayúsculas
+            df_manto.columns = df_manto.columns.str.strip().str.upper()
+            col_fecha_m_sidebar = 'FECHA' if 'FECHA' in df_manto.columns else df_manto.columns[0]
+            df_manto[col_fecha_m_sidebar] = pd.to_datetime(
+                df_manto[col_fecha_m_sidebar], dayfirst=True, errors='coerce'
+            ).dt.date
+            df_manto = df_manto[
+                (df_manto[col_fecha_m_sidebar] >= inicio) & 
+                (df_manto[col_fecha_m_sidebar] <= fin)
     ]
 
         if 'SALUD' in df_manto.columns:
