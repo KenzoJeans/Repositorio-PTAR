@@ -359,13 +359,17 @@ try:
             # --- 1. NORMALIZACIÓN DEFENSIVA ---
             # Limpiamos nombres de columnas (quitar espacios y pasar a MAYÚSCULAS)
             df_manto.columns = df_manto.columns.str.strip().str.upper()
-            
-            # Aseguramos que 'SALUD' sea numérico para evitar errores en comparaciones
-            if 'SALUD' in df_manto.columns:
-                df_manto['SALUD'] = pd.to_numeric(df_manto['SALUD'], errors='coerce').fillna(0)
-            
-            # Identificamos la columna de tiempo (usualmente 'FECHA' o 'MARCA TEMPORAL')
-            col_fecha_m = 'FECHA' if 'FECHA' in df_manto.columns else df_manto.columns[0]
+
+        if 'SALUD' in df_manto.columns:
+            df_manto['SALUD'] = pd.to_numeric(df_manto['SALUD'], errors='coerce').fillna(0)
+
+        col_fecha_m = 'FECHA' if 'FECHA' in df_manto.columns else df_manto.columns[0]
+
+        # ← AÑADIR: parseo de fecha si aún está como texto
+        if df_manto[col_fecha_m].dtype == object:
+            df_manto[col_fecha_m] = pd.to_datetime(
+                df_manto[col_fecha_m], dayfirst=True, errors='coerce'
+                ).dt.date
             
             # --- 2. TARJETAS DE SALUD INDIVIDUAL ---
             if 'EQUIPO' in df_manto.columns:
