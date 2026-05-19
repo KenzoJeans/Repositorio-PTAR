@@ -282,7 +282,9 @@ try:
             st.plotly_chart(px.pie(df_sst_p, values='sst', names='proceso', hole=0.5, template="plotly_dark"), use_container_width=True)
             
             st.write("**📄 Tabla de Datos**")
-            st.dataframe(df_vert_filtrado, use_container_width=True)
+            cols_ocultar = ['MARCA TEMPORAL']
+            cols_mostrar = [c for c in df_manto.columns if c not in cols_ocultar]
+            st.dataframe(df_manto[cols_mostrar].sort_values(col_fecha_m, ascending=False), use_container_width=True)
         else:
             st.warning("Ajusta los filtros para ver datos.")
 
