@@ -281,6 +281,7 @@ try:
             df_sst_p = df_vert_filtrado.groupby('proceso')['sst'].mean().reset_index()
             st.plotly_chart(px.pie(df_sst_p, values='sst', names='proceso', hole=0.5, template="plotly_dark"), use_container_width=True)
             
+            col_fecha_m = 'FECHA' if 'FECHA' in df_manto.columns else df_manto.columns[0]
             st.write("**📄 Tabla de Datos**")
             cols_ocultar = ['MARCA TEMPORAL']
             cols_mostrar = [c for c in df_manto.columns if c not in cols_ocultar]
