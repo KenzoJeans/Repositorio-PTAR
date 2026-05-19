@@ -142,22 +142,46 @@ try:
         st.markdown("---")
         
         # 3. Filtro de Fechas
+        rango = None
         if not df_base_full.empty and 'fecha' in df_base_full.columns:
-            st.subheader("📅 Rango de Tiempo")
-            
-            limite_inferior = date(2024, 1, 1) 
-            limite_superior = date.today()
-            
-            def_start = df_base_full['fecha'].min()
-            def_end = df_base_full['fecha'].max()
-            
-            rango = st.date_input(
-                "Seleccionar fechas:", 
-                [def_start, def_end], 
-                min_value=limite_inferior, 
-                max_value=limite_superior,
-                key="sidebar_date_range"
-            )
+    st.subheader("📅 Rango de Tiempo")
+    
+    limite_inferior = date(2024, 1, 1) 
+    limite_superior = date.today()
+    
+    def_start = df_base_full['fecha'].min()
+    def_end = df_base_full['fecha'].max()
+    
+    rango = st.date_input(
+        "Seleccionar fechas:", 
+        [def_start, def_end], 
+        min_value=limite_inferior, 
+        max_value=limite_superior,
+        key="sidebar_date_range"
+    )
+    
+    if isinstance(rango, (list, tuple)) and len(rango) == 2:
+        inicio, fin = rango
+        df_vert_filtrado = df_vert_filtrado[
+            (df_vert_filtrado['fecha'] >= inicio) & (df_vert_filtrado['fecha'] <= fin)
+        ]
+        
+        # Agua Tratada
+        if not df_tratada.empty and 'fecha' in df_tratada.columns:
+            df_tratada = df_tratada[(df_tratada['fecha'] >= inicio) & (df_tratada['fecha'] <= fin)]
+        
+        # ← AÑADIR: Filtro para Mantenimiento
+        if not df_manto.empty:
+            # Primero normalizar columnas y parsear fechas
+            df_manto.columns = df_manto.columns.str.strip().str.upper()
+            col_fecha_m_sidebar = 'FECHA' if 'FECHA' in df_manto.columns else df_manto.columns[0]
+            df_manto[col_fecha_m_sidebar] = pd.to_datetime(
+                df_manto[col_fecha_m_sidebar], dayfirst=True, errors='coerce'
+            ).dt.date
+            df_manto = df_manto[
+                (df_manto[col_fecha_m_sidebar] >= inicio) & 
+                (df_manto[col_fecha_m_sidebar] <= fin)
+            ]
             
             if isinstance(rango, (list, tuple)) and len(rango) == 2:
                 inicio, fin = rango
