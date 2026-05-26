@@ -149,8 +149,17 @@ try:
             limite_inferior = date(2024, 1, 1) 
             limite_superior = date.today()
             
-            def_start = df_base_full['fecha'].min()
-            def_end = df_base_full['fecha'].max()
+            fechas_maximas = [df_base_full['fecha'].max()]
+
+        if not df_manto.empty:
+            df_manto.columns = df_manto.columns.str.strip().str.upper()
+            col_f = 'FECHA' if 'FECHA' in df_manto.columns else df_manto.columns[0]
+            fechas_manto = pd.to_datetime(df_manto[col_f], dayfirst=True, errors='coerce').dt.date.dropna()
+            if not fechas_manto.empty:
+            fechas_maximas.append(fechas_manto.max())
+
+        def_start = df_base_full['fecha'].min()
+        def_end = max(fechas_maximas)
             
             rango = st.date_input(
                 "Seleccionar fechas:", 
