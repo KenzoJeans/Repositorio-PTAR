@@ -3,11 +3,11 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import plotly.express as px
 from datetime import date, datetime  # <--- ESTA ES LA LÍNEA QUE FALTA
-
+ 
 # 1. Configuración de página y Estilo
 st.set_page_config(page_title="SGA - PTAR - Kenzo Jeans", layout="wide", page_icon="💧")
 st.markdown('<style>div.block-container{padding-top:2rem;}</style>', unsafe_allow_html=True)
-
+ 
 # --- ENCABEZADO PERSONALIZADO KENZO JEANS SAS ---
 # Este bloque elimina el espacio extra que está cortando tu logo
 st.markdown("""
@@ -21,25 +21,25 @@ st.markdown("""
         }
     </style>
     """, unsafe_allow_html=True)
-
+ 
 col_logo, col_titulo = st.columns([1.2, 5])
-
+ 
 with col_logo:
     try:
         # Usamos use_container_width para que no se desborde ni se corte
         st.image("logo-white-kenzo.png", use_container_width=True)
     except Exception:
         st.markdown("**KENZO JEANS**")
-
+ 
 with col_titulo:
     st.title("SGA - Gestión Integral PTAR - Kenzo Jeans SAS")
-
+ 
 # --- CONFIGURACIÓN DE CONEXIÓN ---
 # Asegúrate de reemplazar estas URLs con las tuyas
 URL_DIRECTA_MANTO = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=746789412#gid=746789412"
 URL_DIRECTA_TRATADA = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=1338797542#gid=1338797542"
 URL_DIRECTA_QUIMICOS = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=170562532#gid=170562532"
-
+ 
 # 2. Función de limpieza de datos UNIFICADA
 def limpiar_datos_ptar(df):
     if df is None or df.empty:
@@ -66,7 +66,7 @@ def limpiar_datos_ptar(df):
                 nuevos_nombres[col] = target
     
     df = df.rename(columns=nuevos_nombres)
-
+ 
     columnas_num = ['ph', 'temp', 'sst', 'cond', 'caudal']
     for col in columnas_num:
         if col in df.columns:
@@ -80,7 +80,7 @@ def limpiar_datos_ptar(df):
         df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce').dt.date
     
     return df
-
+ 
 # 3. Carga de Datos Principal
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
@@ -88,26 +88,26 @@ try:
     # Dataset 1: Vertimientos (Base)
     df_raw = conn.read(ttl=0) 
     df_base_full = limpiar_datos_ptar(df_raw)
-
+ 
     # Dataset 2: Agua Tratada
     try:
         df_tratada = limpiar_datos_ptar(conn.read(spreadsheet=URL_DIRECTA_TRATADA, ttl=0))
     except:
         df_tratada = pd.DataFrame()
-
+ 
     # Dataset 3: Mantenimiento
     try:
         df_manto = conn.read(spreadsheet=URL_DIRECTA_MANTO, ttl=0)
         df_manto.columns = df_manto.columns.str.strip()
     except:
         df_manto = pd.DataFrame()
-
+ 
     # Dataset 4: Kardex
     try:
         df_kardex = conn.read(spreadsheet=URL_DIRECTA_QUIMICOS, ttl=0)
     except:
         df_kardex = pd.DataFrame()
-
+ 
 # --- CONFIGURACIÓN Y ESTILO DE BARRA LATERAL ---
     st.markdown("""
         <style>
@@ -117,49 +117,61 @@ try:
             }
         </style>
     """, unsafe_allow_html=True)
-
+ 
     with st.sidebar:
         try:
             st.image("logo-white-kenzo.png", use_container_width=True)
             st.markdown("---")
         except Exception:
             pass
-
+ 
         st.header("🔍 Filtros Dashboard")
         df_vert_filtrado = df_base_full.copy()
-
+ 
         # 1. Filtro de Procesos (Subimos este para dar prioridad)
         if not df_base_full.empty and 'proceso' in df_base_full.columns:
             procesos = sorted(df_base_full['proceso'].unique().tolist())
             sel = st.multiselect("Seleccionar Procesos:", procesos, default=procesos)
             df_vert_filtrado = df_vert_filtrado[df_vert_filtrado['proceso'].isin(sel)]
-
+ 
         # 2. Filtro de Químicos (Escritura)
         filtro_q = st.text_input("Filtrar por Químico:", "")
         if filtro_q and 'quimico' in df_vert_filtrado.columns:
             df_vert_filtrado = df_vert_filtrado[df_vert_filtrado['quimico'].astype(str).str.contains(filtro_q, case=False, na=False)]
-
+ 
         st.markdown("---")
         
         # 3. Filtro de Fechas
         rango = None  # ← al mismo nivel que el if
         if not df_base_full.empty and 'fecha' in df_base_full.columns:
-            st.subheader("📅 Rango de Tiempo")  # ← 4 espacios más adentro
-            
+            st.subheader("📅 Rango de Tiempo")
+ 
             limite_inferior = date(2024, 1, 1) 
             limite_superior = date.today()
             
+            # --- FIX 1: Calcular def_end usando la fecha máxima entre TODOS los datasets ---
             fechas_maximas = [df_base_full['fecha'].max()]
-
-        if not df_manto.empty:
-            df_manto.columns = df_manto.columns.str.strip().str.upper()
-            col_f = 'FECHA' if 'FECHA' in df_manto.columns else df_manto.columns[0]
-            fechas_manto = pd.to_datetime(df_manto[col_f], dayfirst=True, errors='coerce').dt.date.dropna()
-            if not fechas_manto.empty:
-            fechas_maximas.append(fechas_manto.max())
-
-        def_start = df_base_full['fecha'].min()
-        def_end = max(fechas_maximas)
+ 
+            if not df_manto.empty:
+                col_f_temp = 'FECHA' if 'FECHA' in df_manto.columns else (
+                    df_manto.columns.str.upper().tolist()[0]
+                    if any(c.upper() == 'FECHA' for c in df_manto.columns)
+                    else df_manto.columns[0]
+                )
+                # Buscar la columna FECHA sin importar mayúsculas/minúsculas
+                col_candidata = next(
+                    (c for c in df_manto.columns if c.strip().upper() == 'FECHA'),
+                    df_manto.columns[0]
+                )
+                fechas_manto_raw = pd.to_datetime(
+                    df_manto[col_candidata], dayfirst=True, errors='coerce'
+                ).dt.date.dropna()
+                if not fechas_manto_raw.empty:
+                    fechas_maximas.append(fechas_manto_raw.max())
+ 
+            def_start = df_base_full['fecha'].min()
+            def_end = max(fechas_maximas)
+            # --- FIN FIX 1 ---
             
             rango = st.date_input(
                 "Seleccionar fechas:", 
@@ -176,9 +188,12 @@ try:
                 ]
                 if not df_tratada.empty and 'fecha' in df_tratada.columns:
                     df_tratada = df_tratada[(df_tratada['fecha'] >= inicio) & (df_tratada['fecha'] <= fin)]
-
+ 
                 if not df_manto.empty:
-                    col_fecha_m_sidebar = 'FECHA' if 'FECHA' in df_manto.columns else df_manto.columns[0]
+                    col_fecha_m_sidebar = next(
+                        (c for c in df_manto.columns if c.strip().upper() == 'FECHA'),
+                        df_manto.columns[0]
+                    )
                     df_manto[col_fecha_m_sidebar] = pd.to_datetime(
                         df_manto[col_fecha_m_sidebar], dayfirst=True, errors='coerce'
                     ).dt.date
@@ -186,10 +201,10 @@ try:
                         (df_manto[col_fecha_m_sidebar] >= inicio) & 
                         (df_manto[col_fecha_m_sidebar] <= fin)
                     ]
-
+ 
     # --- DEFINICIÓN DE PESTAÑAS ---
     t1, t2, t3, t4 = st.tabs(["📊 Dashboard de vertimientos", "🧪 Agua tratada", "🛠️ Mantenimiento", "🧪 Consumo de químicos"])
-
+ 
     with t1:
         if not df_vert_filtrado.empty:
             # FILA 1: Métricas Principales
@@ -202,9 +217,9 @@ try:
             m2.metric("Temp Promedio", f"{avg_temp:.1f} °C", delta="NORMAL" if avg_temp<=40 else "ALTA", delta_color="normal" if avg_temp<=40 else "inverse")
             m3.metric("SST Promedio", f"{avg_sst:.1f} mg/L")
             m4.metric("Registros", len(df_vert_filtrado))
-
+ 
             st.markdown("---")
-
+ 
             # FILA 2: Gráficas de pH
             col1, col2 = st.columns(2)
             with col1:
@@ -214,7 +229,7 @@ try:
                 st.write("**📊 pH por proceso**")
                 df_ph_p = df_vert_filtrado.groupby('proceso')['ph'].mean().reset_index()
                 st.plotly_chart(px.bar(df_ph_p, x='proceso', y='ph', color='proceso', template="plotly_dark"), use_container_width=True)
-
+ 
            # FILA 3: Análisis de Temperatura con Degradado y Estilo
             col3, col4 = st.columns(2)
             with col3:
@@ -229,7 +244,7 @@ try:
                     # Usamos el color base naranja
                     color_discrete_sequence=['#FF9800'] 
                 )
-
+ 
                 # 2. Configurar el Degradado (Linear Gradient)
                 # 'yanchor="bottom"' asegura que el degradado empiece desde la base (0 o min)
                 fig_temp_hist.update_traces(
@@ -241,7 +256,7 @@ try:
                     fillpattern_fgcolor="rgba(255, 87, 34, 0.8)", # Color secundario del gradiente (naranja más intenso)
                     selector=dict(type='scatter')
                 )
-
+ 
                 # 3. Pulir el layout (ejes y márgenes)
                 fig_temp_hist.update_layout(
                     xaxis_title="Fecha", 
@@ -274,7 +289,7 @@ try:
                     color_discrete_sequence=['#FFD54F', '#FFA726', '#FF7043', '#66BB6A']
 )
         
-
+ 
                 fig_temp_proc.update_layout(
                     xaxis_title="Proceso", 
                     yaxis_title="Promedio Temp (°C)",
@@ -284,7 +299,7 @@ try:
                 )
                 
                 st.plotly_chart(fig_temp_proc, use_container_width=True)
-
+ 
             # FILA 4: SST y Tabla
             st.write("**🍩 Promedio de Sólidos (SST) por proceso**")
             df_sst_p = df_vert_filtrado.groupby('proceso')['sst'].mean().reset_index()
@@ -297,7 +312,7 @@ try:
             st.dataframe(df_manto[cols_mostrar].sort_values(col_fecha_m, ascending=False), use_container_width=True)
         else:
             st.warning("Ajusta los filtros para ver datos.")
-
+ 
     with t2:
         st.subheader("🧪 Monitoreo de Agua Tratada")
         
@@ -312,16 +327,16 @@ try:
                 remocion = 100.0
             else:
                 remocion = max(0, (1 - (avg_sst_sal / sst_ent)) * 100)
-
+ 
             # --- TARJETAS (KPIs) ---
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("SST Salida (Prom)", f"{avg_sst_sal:.1f} mg/L", delta=f"{remocion:.1f}% Eficiencia")
             c2.metric("pH Salida", f"{df_tratada['ph'].mean():.2f}", delta="OK" if 6<=df_tratada['ph'].mean()<=9 else "FUERA")
             c3.metric("Temp Salida", f"{df_tratada['temp'].mean():.1f} °C", delta="ESTABLE" if df_tratada['temp'].mean()<=40 else "ALTA")
             c4.metric("Caudal Total", f"{df_tratada['caudal'].sum():.1f} m³")
-
+ 
             st.markdown("---")
-
+ 
             # --- FILA 1: COMPORTAMIENTO FÍSICO-QUÍMICO ---
             col_a, col_b = st.columns(2)
             with col_a:
@@ -332,7 +347,7 @@ try:
                 fig_ph_t.add_hline(y=6, line_dash="dash", line_color="red", annotation_text="Límite Inf")
                 fig_ph_t.add_hline(y=9, line_dash="dash", line_color="red", annotation_text="Límite Sup")
                 st.plotly_chart(fig_ph_t, use_container_width=True)
-
+ 
             with col_b:
                 st.write("**🌡️ Temperatura de Salida (Tiempo)**")
                 # Usamos el naranja que ya definimos para mantener consistencia
@@ -340,7 +355,7 @@ try:
                                      template="plotly_dark", color_discrete_sequence=['#FFA726'])
                 fig_temp_t.add_hline(y=40, line_dash="dash", line_color="red", annotation_text="Máx Permisible")
                 st.plotly_chart(fig_temp_t, use_container_width=True)
-
+ 
             # --- FILA 2: EFICIENCIA Y VOLUMEN ---
             col_c, col_d = st.columns(2)
             with col_c:
@@ -354,41 +369,33 @@ try:
                                  color_discrete_map={'Entrada (Crudo)': '#78909C', 'Salida (Tratada)': '#00E676'},
                                  template="plotly_dark")
                 st.plotly_chart(fig_rem, use_container_width=True)
-
+ 
             with col_d:
                 st.write("**📊 Volumen de Agua Tratada por Día**")
                 fig_cau = px.bar(df_tratada.sort_values('fecha'), x='fecha', y='caudal',
                                  template="plotly_dark", color_discrete_sequence=['#29B6F6'])
                 st.plotly_chart(fig_cau, use_container_width=True)
-
+ 
         else:
             st.warning("No hay datos registrados en la hoja de 'Agua Tratada'.")
-
+ 
     with t3:
         st.subheader("🛠️ Estado de Equipos - Kenzo Jeans")
         
         if not df_manto.empty:
-        # ← PRIMERO normalizar columnas a mayúsculas
+            # --- FIX 2: Normalizar columnas UNA SOLA VEZ (el filtrado ya ocurrió en el sidebar) ---
             df_manto.columns = df_manto.columns.str.strip().str.upper()
-            col_fecha_m_sidebar = 'FECHA' if 'FECHA' in df_manto.columns else df_manto.columns[0]
-            df_manto[col_fecha_m_sidebar] = pd.to_datetime(
-                df_manto[col_fecha_m_sidebar], dayfirst=True, errors='coerce'
-            ).dt.date
-            df_manto = df_manto[
-                (df_manto[col_fecha_m_sidebar] >= inicio) & 
-                (df_manto[col_fecha_m_sidebar] <= fin)
-    ]
-
-        if 'SALUD' in df_manto.columns:
-            df_manto['SALUD'] = pd.to_numeric(df_manto['SALUD'], errors='coerce').fillna(0)
-
-        col_fecha_m = 'FECHA' if 'FECHA' in df_manto.columns else df_manto.columns[0]
-
-        # ← AÑADIR: parseo de fecha si aún está como texto
-        if df_manto[col_fecha_m].dtype == object:
-            df_manto[col_fecha_m] = pd.to_datetime(
-                df_manto[col_fecha_m], dayfirst=True, errors='coerce'
+            col_fecha_m = 'FECHA' if 'FECHA' in df_manto.columns else df_manto.columns[0]
+ 
+            # Parsear fechas solo si todavía son strings
+            if df_manto[col_fecha_m].dtype == object:
+                df_manto[col_fecha_m] = pd.to_datetime(
+                    df_manto[col_fecha_m], dayfirst=True, errors='coerce'
                 ).dt.date
+            # --- FIN FIX 2 (se eliminó el segundo bloque de filtrado por fechas que estaba aquí) ---
+ 
+            if 'SALUD' in df_manto.columns:
+                df_manto['SALUD'] = pd.to_numeric(df_manto['SALUD'], errors='coerce').fillna(0)
             
             # --- 2. TARJETAS DE SALUD INDIVIDUAL ---
             if 'EQUIPO' in df_manto.columns:
@@ -418,7 +425,7 @@ try:
             # --- 3. ANÁLISIS VISUAL AVANZADO (REEMPLAZO DE LA GRÁFICA) ---
             st.markdown("---")
             col_v1, col_v2 = st.columns([2, 1])
-
+ 
             with col_v1:
                 st.write("**🌡️ Mapa de Salud Semanal (Heatmap)**")
                 # Creamos una matriz de Salud: Equipos vs Fecha
@@ -429,7 +436,11 @@ try:
                     values='SALUD', 
                     aggfunc='last'
                 ).fillna(0)
-
+ 
+                # --- FIX 3: Convertir columnas (fechas) a strings legibles para Plotly ---
+                df_pivot.columns = [str(c) for c in df_pivot.columns]
+                # --- FIN FIX 3 ---
+ 
                 fig_heat = px.imshow(
                     df_pivot,
                     labels=dict(x="Fecha", y="Equipo", color="Salud"),
@@ -441,7 +452,7 @@ try:
                 )
                 fig_heat.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=350)
                 st.plotly_chart(fig_heat, use_container_width=True)
-
+ 
             with col_v2:
                 st.write("**📢 Alertas de Mantenimiento**")
                 # Filtramos equipos con salud menor a 7 para mostrar como tareas pendientes
@@ -452,12 +463,13 @@ try:
                         st.warning(f"**{row['EQUIPO']}**: Salud en {row['SALUD']}/10. Requiere revisión técnica inmediata.")
                 else:
                     st.success("✅ Todos los equipos operan en rangos seguros.")
-
+ 
             # --- 4. TABLA DE BITÁCORA ---
             with st.expander("📝 Ver historial completo de intervenciones"):
                 cols_ocultar = ['MARCA TEMPORAL']
-            cols_mostrar = [c for c in df_manto.columns if c not in cols_ocultar]
-            st.dataframe(df_manto[cols_mostrar].sort_values(col_fecha_m, ascending=False), use_container_width=True)
+                cols_mostrar = [c for c in df_manto.columns if c not in cols_ocultar]
+                st.dataframe(df_manto[cols_mostrar].sort_values(col_fecha_m, ascending=False), use_container_width=True)
+ 
     with t4:
         st.subheader("📦 Gestión de Inventarios y Consumo - Kenzo Jeans")
         
@@ -491,10 +503,10 @@ try:
                 .str.replace(r'[^0-9.]', '', regex=True) # Elimina cualquier caracter no numérico
             )
             df_k_periodo['CANTIDAD'] = pd.to_numeric(df_k_periodo['CANTIDAD'], errors='coerce').fillna(0)
-
+ 
             # 2. LIMPIEZA DE FECHAS: Aseguramos que Pandas las entienda bien
             df_k_periodo['FECHA'] = pd.to_datetime(df_k_periodo['FECHA'], dayfirst=True, errors='coerce').dt.date
-
+ 
             if isinstance(rango, (list, tuple)) and len(rango) == 2:
                 inicio, fin = rango
                 # Filtramos el periodo
@@ -509,7 +521,7 @@ try:
                 cs1, cs2, cs3 = st.columns(3)
                 quimicos_objetivo = ["SULFATO DE ALUMINIO", "CAL", "POLIMERO"]
                 columnas_salida = [cs1, cs2, cs3]
-
+ 
                 for i, quimico in enumerate(quimicos_objetivo):
                     total_salida = consumo_periodo.get(quimico, 0.0)
                     # Contamos cuántos registros sumaron para este químico
@@ -523,25 +535,25 @@ try:
                     )
             
             st.markdown("---")
-
+ 
             # --- FILA 2: DONA Y RESUMEN ---
             col_dona, col_info = st.columns([1.5, 1])
             df_salidas = df_kardex[df_kardex['QUE PROCESO VA A REALIZAR'] == 'SALIDA']
             consumo_total = df_salidas.groupby('NOMBRE DEL QUIMICO')['CANTIDAD'].sum().reset_index()
-
+ 
             with col_dona:
                 st.write("**🍩 Distribución de Consumo**")
                 fig_dona = px.pie(consumo_total, values='CANTIDAD', names='NOMBRE DEL QUIMICO', hole=0.6,
                                  color_discrete_sequence=['#2E7D32', '#FBC02D', '#1565C0'], template="plotly_dark")
                 fig_dona.update_layout(margin=dict(l=20, r=20, t=20, b=20), height=300)
                 st.plotly_chart(fig_dona, use_container_width=True)
-
+ 
             with col_info:
                 st.write("**💡 Estado de Bodega**")
                 if not consumo_total.empty:
                     st.info("El sistema está monitoreando las salidas diarias para predecir agotamiento de stock.")
                     st.success("Sugerencia: Revisar niveles de Cal el próximo lunes.")
-
+ 
             # --- FILA 3: TABLA DETALLADA (CORREGIDA SIN MATPLOTLIB) ---
             st.markdown("---")
             st.write("**📋 Historial Detallado de Movimientos**")
@@ -559,9 +571,9 @@ try:
                 use_container_width=True,
                 hide_index=True
             )
-
+ 
         else:
             st.warning("No se detectaron datos en la hoja de Químicos.")
-
+ 
 except Exception as e:
     st.error(f"Se detectó un error: {e}")
