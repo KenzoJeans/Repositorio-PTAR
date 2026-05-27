@@ -90,10 +90,15 @@ try:
     df_base_full = limpiar_datos_ptar(df_raw)
  
     # Dataset 2: Agua Tratada
-    try:
-        df_tratada = limpiar_datos_ptar(conn.read(spreadsheet=URL_DIRECTA_TRATADA, ttl=0))
-    except:
-        df_tratada = pd.DataFrame()
+    df_tratada_filtrada = df_tratada.copy()
+
+if isinstance(rango, (list, tuple)) and len(rango) == 2:
+    inicio, fin = rango
+    if not df_tratada_filtrada.empty and 'fecha' in df_tratada_filtrada.columns:
+        df_tratada_filtrada = df_tratada_filtrada[
+            (df_tratada_filtrada['fecha'] >= inicio) &
+            (df_tratada_filtrada['fecha'] <= fin)
+        ]
  
     # Dataset 3: Mantenimiento
     try:
