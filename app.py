@@ -5,6 +5,11 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import date, datetime
+import io
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet
  
 # ─────────────────────────────────────────────
 # 1. CONFIGURACIÓN DE PÁGINA
@@ -126,12 +131,6 @@ def limpiar_datos_ptar(df):
     df = df.dropna(how='all')
  
     return df
- import io
-from reportlab.lib.pagesizes import letter
-from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet
-
 def generar_informe_mensual_pdf(df_vert, df_tratada, rango_fechas):
     # Creamos un buffer en la memoria RAM, no en el disco duro
     buffer = io.BytesIO()
