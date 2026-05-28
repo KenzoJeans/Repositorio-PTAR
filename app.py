@@ -156,31 +156,31 @@ LAYOUT_BASE = dict(
 # ─────────────────────────────────────────────
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
- 
-    # Dataset 1: Vertimientos
-    df_base_full = limpiar_datos_ptar(conn.read(spreadsheet=URL_BASE, worksheet=WS_BASE, ttl=0))
- 
-    # Dataset 2: Agua Tratada
+
+    # Dataset 1: Vertimientos — SIN spreadsheet= (usa el secrets por defecto)
+    df_base_full = limpiar_datos_ptar(conn.read(ttl=0))
+
+    # Dataset 2: Agua Tratada — SIN worksheet=
     try:
         df_tratada = limpiar_datos_ptar(
-            conn.read(spreadsheet=URL_TRATADA, worksheet=WS_TRATADA, ttl=0)
+            conn.read(spreadsheet=URL_TRATADA, ttl=0)
         )
     except Exception as e_t:
         st.sidebar.warning(f"⚠️ Agua Tratada no cargó: {e_t}")
         df_tratada = pd.DataFrame()
- 
-    # Dataset 3: Mantenimiento
+
+    # Dataset 3: Mantenimiento — SIN worksheet=
     try:
-        df_manto_raw = conn.read(spreadsheet=URL_MANTO, worksheet=WS_MANTO, ttl=0)
+        df_manto_raw = conn.read(spreadsheet=URL_MANTO, ttl=0)
         df_manto_raw.columns = df_manto_raw.columns.str.strip()
         df_manto = df_manto_raw.copy()
     except Exception as e_m:
         st.sidebar.warning(f"⚠️ Mantenimiento no cargó: {e_m}")
         df_manto = pd.DataFrame()
- 
-    # Dataset 4: Kardex
+
+    # Dataset 4: Kardex — SIN worksheet=
     try:
-        df_kardex = conn.read(spreadsheet=URL_QUIMICOS, worksheet=WS_QUIMICOS, ttl=0)
+        df_kardex = conn.read(spreadsheet=URL_QUIMICOS, ttl=0)
         df_kardex.columns = df_kardex.columns.str.strip().str.upper()
     except Exception as e_k:
         st.sidebar.warning(f"⚠️ Kardex no cargó: {e_k}")
