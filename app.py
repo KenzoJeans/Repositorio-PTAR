@@ -351,10 +351,39 @@ try:
                     ]
         else:
             st.info("Carga datos de vertimientos para habilitar filtro de fechas.")
+        
+     # (Esto va dentro del bloque "with st.sidebar:")
+        st.markdown("---")
+        st.subheader("📄 Exportar Informe")
+        
+        # Validar que existan datos antes de permitir generar el PDF
+        if not df_vert_filtrado.empty:
+            if isinstance(rango, (list, tuple)) and len(rango) == 2:
+                texto_rango = f"{inicio.strftime('%Y-%m-%d')} al {fin.strftime('%Y-%m-%d')}"
+            else:
+                texto_rango = "Histórico Total"
+
+            # Generamos el archivo en background
+            pdf_file = generar_informe_mensual_pdf(
+                df_vert_filtrado, 
+                df_tratada_filtrada, 
+                texto_rango
+            )
+            
+            # Botón nativo de descarga
+            st.download_button(
+                label="📥 Descargar PDF del Mes",
+                data=pdf_file,
+                file_name=f"SGA_Informe_PTAR_{texto_rango}.pdf",
+                mime="application/pdf",
+                use_container_width=True
+            )
+        else:
+            st.info("Filtra un rango de fechas con datos para exportar el informe.")
  
         st.markdown("---")
         st.caption("SGA v2.0 · Kenzo Jeans SAS")
- 
+        
     # ─────────────────────────────────────────────
     # 8. PESTAÑAS
     # ─────────────────────────────────────────────
