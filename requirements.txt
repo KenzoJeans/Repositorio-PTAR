@@ -5,3 +5,5 @@ plotly
 streamlit-plotly-events
 fpdf
 kaleido
+numpy
+reportlab
