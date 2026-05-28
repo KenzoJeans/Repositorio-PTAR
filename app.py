@@ -126,7 +126,80 @@ def limpiar_datos_ptar(df):
     df = df.dropna(how='all')
  
     return df
- 
+ import io
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet
+
+def generar_informe_mensual_pdf(df_vert, df_tratada, rango_fechas):
+    # Creamos un buffer en la memoria RAM, no en el disco duro
+    buffer = io.BytesIO()
+    
+    # Configuramos el documento
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=30)
+    elementos = []
+    estilos = getSampleStyleSheet()
+    
+    # 1. Encabezado del documento
+    elementos.append(Paragraph("Informe Ejecutivo: Gestión Integral PTAR", estilos['Title']))
+    elementos.append(Paragraph(f"Kenzo Jeans SAS | Periodo: {rango_fechas}", estilos['Heading2']))
+    elementos.append(Spacer(1, 15))
+    
+    # 2. Párrafo introductorio
+    intro = """Este documento de lectura resume los indicadores operativos consolidados 
+    del Sistema de Gestión Ambiental (SGA). Los siguientes datos reflejan los promedios 
+    de control para pH, temperatura, conductividad y sólidos sedimentables durante el 
+    periodo seleccionado."""
+    elementos.append(Paragraph(intro, estilos['Normal']))
+    elementos.append(Spacer(1, 20))
+    
+    # 3. Cálculo de KPIs (Manejo de nulos para evitar errores)
+    avg_ph = df_vert['ph'].replace(0, np.nan).mean() if not df_vert.empty else 0
+    avg_temp = df_vert['temp'].replace(0, np.nan).mean() if not df_vert.empty else 0
+    avg_sst = df_vert['sst'].replace(0, np.nan).mean() if not df_vert.empty else 0
+    
+    # Evaluaciones de estado
+    estado_ph = "CUMPLE (6-9)" if 6 <= avg_ph <= 9 else "ALERTA"
+    estado_temp = "CUMPLE (<40°C)" if avg_temp <= 40 else "ALERTA"
+    
+    # 4. Construcción de la Tabla de Resumen
+    elementos.append(Paragraph("Resumen de Parámetros Físico-Químicos (Entrada)", estilos['Heading3']))
+    elementos.append(Spacer(1, 10))
+    
+    datos_tabla = [
+        ["Parámetro", "Promedio Consolidado", "Estado Normativo"],
+        ["pH", f"{avg_ph:.2f}", estado_ph],
+        ["Temperatura", f"{avg_temp:.1f} °C", estado_temp],
+        ["SST", f"{avg_sst:.1f} mg/L", "Monitoreo"]
+    ]
+    
+    # Dando formato profesional a la tabla
+    tabla = Table(datos_tabla, colWidths=[150, 150, 150])
+    tabla.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2E2E4E')), # Azul oscuro corporativo
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f4f4f4')),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    
+    elementos.append(tabla)
+    elementos.append(Spacer(1, 30))
+    
+    # Nota de cierre
+    nota = "Reporte generado automáticamente por el motor Python del SGA."
+    elementos.append(Paragraph(nota, estilos['Italic']))
+    
+    # 5. Compilar el PDF
+    doc.build(elementos)
+    
+    # Mover el puntero del buffer al inicio para que Streamlit pueda leerlo
+    buffer.seek(0)
+    return buffer
 # ─────────────────────────────────────────────
 # 5. HELPER: COLORES DE SEMÁFORO
 # ─────────────────────────────────────────────
