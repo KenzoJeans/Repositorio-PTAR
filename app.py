@@ -6,10 +6,12 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import date, datetime
 import io
+import numpy as np
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
  
 # ─────────────────────────────────────────────
 # 1. CONFIGURACIÓN DE PÁGINA
@@ -132,71 +134,184 @@ def limpiar_datos_ptar(df):
  
     return df
 def generar_informe_mensual_pdf(df_vert, df_tratada, rango_fechas):
-    # Creamos un buffer en la memoria RAM, no en el disco duro
     buffer = io.BytesIO()
     
-    # Configuramos el documento
-    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=30)
+    # Configuración de página con márgenes más estilizados
+    doc = SimpleDocTemplate(
+        buffer, 
+        pagesize=letter, 
+        rightMargin=45, 
+        leftMargin=45, 
+        topMargin=40, 
+        bottomMargin=40
+    )
     elementos = []
+    
+    # ---------------------------------------------------------
+    # 🎨 DEFINICIÓN DE ESTILOS Y COLORES CORPORATIVOS
+    # ---------------------------------------------------------
+    COLOR_PRIMARIO = colors.HexColor('#1E293B')   # Pizarra Oscuro (Elegancia)
+    COLOR_ACCENTO = colors.HexColor('#059669')    # Verde Esmeralda (Ambiental/SGA)
+    COLOR_BG_LIGHT = colors.HexColor('#F8FAFC')   # Fondo Gris Claro Premium
+    COLOR_TEXTO = colors.HexColor('#334155')      # Gris Carbón para lectura cómoda
+    
     estilos = getSampleStyleSheet()
     
-    # 1. Encabezado del documento
-    elementos.append(Paragraph("Informe Ejecutivo: Gestión Integral PTAR", estilos['Title']))
-    elementos.append(Paragraph(f"Kenzo Jeans SAS | Periodo: {rango_fechas}", estilos['Heading2']))
+    # Modificamos o creamos estilos personalizados
+    estilo_titulo = ParagraphStyle(
+        'DocTitle',
+        parent=estilos['Title'],
+        fontName='Helvetica-Bold',
+        fontSize=24,
+        leading=28,
+        textColor=COLOR_PRIMARIO,
+        alignment=TA_LEFT,
+        spaceAfter=4
+    )
+    
+    estilo_sub_empresa = ParagraphStyle(
+        'SubEmpresa',
+        fontName='Helvetica-Bold',
+        fontSize=11,
+        leading=14,
+        textColor=COLOR_ACCENTO,
+        spaceAfter=2
+    )
+    
+    estilo_sub_periodo = ParagraphStyle(
+        'SubPeriodo',
+        fontName='Helvetica',
+        fontSize=10,
+        leading=12,
+        textColor=colors.HexColor('#64748B'),
+        spaceAfter=15
+    )
+    
+    estilo_cuerpo = ParagraphStyle(
+        'CuerpoLimpio',
+        fontName='Helvetica',
+        fontSize=10,
+        leading=15,
+        textColor=COLOR_TEXTO,
+        spaceAfter=15
+    )
+    
+    estilo_subtitulo_seccion = ParagraphStyle(
+        'SubSeccion',
+        fontName='Helvetica-Bold',
+        fontSize=14,
+        leading=18,
+        textColor=COLOR_PRIMARIO,
+        spaceBefore=15,
+        spaceAfter=10
+    )
+    
+    # Estilos para las tarjetas KPI
+    estilo_kpi_num = ParagraphStyle('KPINum', fontName='Helvetica-Bold', fontSize=18, leading=22, textColor=COLOR_PRIMARIO, alignment=TA_CENTER)
+    estilo_kpi_lbl = ParagraphStyle('KPILbl', fontName='Helvetica', fontSize=9, leading=11, textColor=colors.HexColor('#64748B'), alignment=TA_CENTER)
+
+    # Estilos para el texto dentro de la tabla de datos
+    estilo_th = ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=10, textColor=colors.whitesmoke, alignment=TA_CENTER)
+    estilo_td = ParagraphStyle('TD', fontName='Helvetica', fontSize=9, textColor=COLOR_TEXTO, alignment=TA_CENTER)
+    estilo_td_cumple = ParagraphStyle('TDCumple', fontName='Helvetica-Bold', fontSize=9, textColor=colors.HexColor('#16A34A'), alignment=TA_CENTER)
+    estilo_td_alerta = ParagraphStyle('TDAlerta', fontName='Helvetica-Bold', fontSize=9, textColor=colors.HexColor('#DC2626'), alignment=TA_CENTER)
+
+    # ---------------------------------------------------------
+    # 🏢 ENCABEZADO Y MARCA
+    # ---------------------------------------------------------
+    elementos.append(Paragraph("KENZO JEANS S.A.S.", estilo_sub_empresa))
+    elementos.append(Paragraph("Informe Ejecutivo: Gestión Integral PTAR", estilo_titulo))
+    elementos.append(Paragraph(f"Periodo de Control: {rango_fechas} | Generado automáticamente", estilo_sub_periodo))
+    
+    # Línea decorativa de acento (Se hace mediante una tabla delgada de color)
+    linea_acento = Table([[""]], colWidths=[520], rowHeights=[3])
+    linea_acento.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), COLOR_ACCENTO)]))
+    elementos.append(linea_acento)
     elementos.append(Spacer(1, 15))
     
-    # 2. Párrafo introductorio
-    intro = """Este documento de lectura resume los indicadores operativos consolidados 
-    del Sistema de Gestión Ambiental (SGA). Los siguientes datos reflejan los promedios 
-    de control para pH, temperatura, conductividad y sólidos sedimentables durante el 
-    periodo seleccionado."""
-    elementos.append(Paragraph(intro, estilos['Normal']))
-    elementos.append(Spacer(1, 20))
+    # Párrafo introductorio
+    intro = """Este documento de lectura ejecutiva consolida los indicadores operativos del Sistema de Gestión Ambiental (SGA). 
+    Los datos presentados corresponden a los promedios calculados de las muestras diarias tomadas en los puntos de control 
+    físico-químicos de la Planta de Tratamiento de Aguas Residuales (PTAR)."""
+    elementos.append(Paragraph(intro, estilo_cuerpo))
     
-    # 3. Cálculo de KPIs (Manejo de nulos para evitar errores)
+    # 📊 CÁLCULO DE MÉTRICAS (Manejo de nulos)
     avg_ph = df_vert['ph'].replace(0, np.nan).mean() if not df_vert.empty else 0
     avg_temp = df_vert['temp'].replace(0, np.nan).mean() if not df_vert.empty else 0
     avg_sst = df_vert['sst'].replace(0, np.nan).mean() if not df_vert.empty else 0
     
-    # Evaluaciones de estado
-    estado_ph = "CUMPLE (6-9)" if 6 <= avg_ph <= 9 else "ALERTA"
-    estado_temp = "CUMPLE (<40°C)" if avg_temp <= 40 else "ALERTA"
+    estado_ph = "CUMPLE" if 6 <= avg_ph <= 9 else "ALERTA"
+    estado_temp = "CUMPLE" if avg_temp <= 40 else "ALERTA"
     
-    # 4. Construcción de la Tabla de Resumen
-    elementos.append(Paragraph("Resumen de Parámetros Físico-Químicos (Entrada)", estilos['Heading3']))
-    elementos.append(Spacer(1, 10))
+    # ---------------------------------------------------------
+    # 🗂️ SECCIÓN 1: TARJETAS DE CONSOLIDADO (Efecto Dashboard)
+    # ---------------------------------------------------------
+    elementos.append(Paragraph("Métricas Críticas del Periodo", estilo_subtitulo_seccion))
     
-    datos_tabla = [
-        ["Parámetro", "Promedio Consolidado", "Estado Normativo"],
-        ["pH", f"{avg_ph:.2f}", estado_ph],
-        ["Temperatura", f"{avg_temp:.1f} °C", estado_temp],
-        ["SST", f"{avg_sst:.1f} mg/L", "Monitoreo"]
+    # Diseñamos tarjetas visuales independientes para cada parámetro
+    datos_kpis = [
+        [
+            Paragraph(f"{avg_ph:.2f}", estilo_kpi_num), 
+            Paragraph(f"{avg_temp:.1f} °C", estilo_kpi_num), 
+            Paragraph(f"{avg_sst:.1f} mg/L", estilo_kpi_num)
+        ],
+        [
+            Paragraph("Promedio pH (6.0 - 9.0)", estilo_kpi_lbl), 
+            Paragraph("Temperatura Máx (40°C)", estilo_kpi_lbl), 
+            Paragraph("Sólidos Sedimentables", estilo_kpi_lbl)
+        ]
     ]
     
-    # Dando formato profesional a la tabla
-    tabla = Table(datos_tabla, colWidths=[150, 150, 150])
-    tabla.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2E2E4E')), # Azul oscuro corporativo
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+    tabla_kpis = Table(datos_kpis, colWidths=[173, 173, 174])
+    tabla_kpis.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), COLOR_BG_LIGHT),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f4f4f4')),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#E2E8F0')), # Borde exterior suave
+        ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E2E8F0')), # Divisiones internas
+        ('TOPPADDING', (0, 0), (-1, 0), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 2),
+        ('TOPPADDING', (0, 1), (-1, 1), 2),
+        ('BOTTOMPADDING', (0, 1), (-1, 1), 12),
+    ]))
+    elementos.append(tabla_kpis)
+    elementos.append(Spacer(1, 20))
+    
+    # ---------------------------------------------------------
+    # 📊 SECCIÓN 2: TABLA DETALLADA DE CUMPLIMIENTO NORMADO
+    # ---------------------------------------------------------
+    elementos.append(Paragraph("Análisis de Conformidad Normativa", estilo_subtitulo_seccion))
+    
+    p_est_ph = estilo_td_cumple if estado_ph == "CUMPLE" else estilo_td_alerta
+    p_est_temp = estilo_td_cumple if estado_temp == "CUMPLE" else estilo_td_alerta
+
+    datos_tabla = [
+        [Paragraph("Parámetro Operativo", estilo_th), Paragraph("Valor Registrado", estilo_th), Paragraph("Estado Legal", estilo_th)],
+        [Paragraph("Potencial de Hidrógeno (pH)", estilo_td), Paragraph(f"{avg_ph:.2f}", estilo_td), Paragraph(estado_ph, p_est_ph)],
+        [Paragraph("Temperatura de Descarga", estilo_td), Paragraph(f"{avg_temp:.1f} °C", estilo_td), Paragraph(estado_temp, p_est_temp)],
+        [Paragraph("Sólidos Sedimentables (SST)", estilo_td), Paragraph(f"{avg_sst:.1f} mg/L", estilo_td), Paragraph("Monitoreo", estilo_td)]
+    ]
+    
+    tabla_datos = Table(datos_tabla, colWidths=[200, 160, 160])
+    tabla_datos.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), COLOR_PRIMARIO), # Encabezado oscuro slate
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, COLOR_BG_LIGHT]), # Filas alternas
+        ('LINEBELOW', (0, -1), (-1, -1), 1.5, COLOR_PRIMARIO), # Línea final de cierre
+        ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')), # Líneas de grilla muy sutiles
     ]))
     
-    elementos.append(tabla)
-    elementos.append(Spacer(1, 30))
+    elementos.append(tabla_datos)
+    elementos.append(Spacer(1, 35))
     
-    # Nota de cierre
-    nota = "Reporte generado automáticamente por el motor Python del SGA."
-    elementos.append(Paragraph(nota, estilos['Italic']))
+    # Pie de página / Cierre institucional
+    estilo_pie = ParagraphStyle('Pie', fontName='Helvetica-Oblique', fontSize=8, textColor=colors.HexColor('#94A3B8'))
+    elementos.append(Paragraph("Sistema de Gestión Ambiental (SGA) | Kenzo Jeans SAS. Reporte automatizado en cumplimiento de la normativa ambiental vigente.", estilo_pie))
     
-    # 5. Compilar el PDF
     doc.build(elementos)
-    
-    # Mover el puntero del buffer al inicio para que Streamlit pueda leerlo
     buffer.seek(0)
     return buffer
 # ─────────────────────────────────────────────
