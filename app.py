@@ -5,6 +5,19 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import date, datetime
+import io
+from datetime import date, datetime
+import pandas as pd
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import mm
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
+    HRFlowable, KeepTogether
+)
+from reportlab.platypus import Image as RLImage
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
  
 # ─────────────────────────────────────────────
 # 1. CONFIGURACIÓN DE PÁGINA
