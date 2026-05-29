@@ -292,7 +292,29 @@ try:
                     ]
         else:
             st.info("Carga datos de vertimientos para habilitar filtro de fechas.")
- 
+         # ── EXPORTAR REPORTE PDF ──
+        st.markdown("---")
+        st.subheader("📄 Exportar Reporte")
+        if st.button("🖨️ Generar certificado PDF", use_container_width=True):
+            with st.spinner("Generando reporte..."):
+                try:
+                    pdf_bytes = generar_reporte_pdf(
+                        df_vert      = df_vert_filtrado,
+                        df_tratada   = df_tratada_filtrada,
+                        df_manto     = df_manto_filtrado,
+                        df_kardex    = df_kardex,
+                        rango_fechas = rango if isinstance(rango, (list, tuple)) else None,
+                    )
+                    st.download_button(
+                        label            = "⬇️ Descargar PDF",
+                        data             = pdf_bytes,
+                        file_name        = f"Reporte_PTAR_Kenzo_{date.today()}.pdf",
+                        mime             = "application/pdf",
+                        use_container_width=True,
+                    )
+                except Exception as e_pdf:
+                    st.error(f"Error generando PDF: {e_pdf}")
+
         st.markdown("---")
         st.caption("SGA v2.0 · Kenzo Jeans SAS")
  
