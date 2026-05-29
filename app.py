@@ -253,17 +253,15 @@ def generar_pdf_bytes(df_v, df_t, r_fechas):
     pdf.ln(4)
 
     try:
-       plt.figure(figsize=(10, 4))
-       plt.plot(datos['fecha'], datos['ph'], color='#1f77b4', marker='o', linestyle='-')
-       plt.title('Análisis de Tendencias Históricas', fontsize=14, fontweight='bold', pad=15)
-       plt.xlabel('Fecha', fontsize=11)
-       plt.ylabel('pH', fontsize=11)
-       plt.grid(True, linestyle='--', alpha=0.6)
+            plt.figure(figsize=(10, 4))
+            plt.plot(datos['fecha'], datos['ph'], color='#1f77b4', marker='o', linestyle='-')
+            plt.title('Análisis de Tendencias Históricas', fontsize=14, fontweight='bold', pad=15)
+            plt.xlabel('Fecha', fontsize=11)
+            plt.ylabel('pH', fontsize=11)
+            plt.grid(True, linestyle='--', alpha=0.6)
             
-            img_bytes = fig_pdf_ph.to_image(format="png")
-            img_stream = io.BytesIO(img_bytes)
-            pdf.image(img_stream, w=180, h=75)
-            pdf.ln(5)
+            plt.savefig('grafica_ph.png', bbox_inches='tight', dpi=150)
+            plt.close()
     except Exception as e:
         pdf.set_font("Helvetica", "I", 9)
         pdf.cell(0, 6, f"(Nota: No se pudo renderizar la gráfica de pH en tiempo real: {str(e)})", ln=True)
