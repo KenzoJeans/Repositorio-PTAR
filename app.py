@@ -253,22 +253,12 @@ def generar_pdf_bytes(df_v, df_t, r_fechas):
     pdf.ln(4)
 
     try:
-        # ... código donde cargas tus datos ...
-
-# --- PEGA ESTE BLOQUE DESDE AQUÍ ---
-   plt.figure(figsize=(10, 4))
-   plt.plot(datos['fecha'], datos['ph'], color='#1f77b4', marker='o', linestyle='-')
-   plt.title('Análisis de Tendencias Históricas', fontsize=14, fontweight='bold', pad=15)
-   plt.xlabel('Fecha', fontsize=11)
-   plt.ylabel('pH', fontsize=11)
-   plt.grid(True, linestyle='--', alpha=0.6)
-
-# Guarda la imagen directamente en la misma carpeta sin depender de Chrome
-   plt.savefig('grafica_ph.png', bbox_inches='tight', dpi=150)
-   plt.close()
-# --- HASTA AQUÍ ---
-
-# ... código que sigue para armar el informe (este no lo toques) ...
+       plt.figure(figsize=(10, 4))
+       plt.plot(datos['fecha'], datos['ph'], color='#1f77b4', marker='o', linestyle='-')
+       plt.title('Análisis de Tendencias Históricas', fontsize=14, fontweight='bold', pad=15)
+       plt.xlabel('Fecha', fontsize=11)
+       plt.ylabel('pH', fontsize=11)
+       plt.grid(True, linestyle='--', alpha=0.6)
             
             img_bytes = fig_pdf_ph.to_image(format="png")
             img_stream = io.BytesIO(img_bytes)
