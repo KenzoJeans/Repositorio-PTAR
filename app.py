@@ -7,6 +7,7 @@ import plotly.graph_objects as go
 from datetime import date, datetime
 import io
 from fpdf import FPDF
+import matplotlib.pyplot as plt
  
 # ─────────────────────────────────────────────
 # 1. CONFIGURACIÓN DE PÁGINA
@@ -252,13 +253,22 @@ def generar_pdf_bytes(df_v, df_t, r_fechas):
     pdf.ln(4)
 
     try:
-        # Re-crear gráfica rápida de pH para el PDF usando plotly estático
-        df_ph = df_v.dropna(subset=['fecha']).sort_values('fecha')
-        if not df_ph.empty:
-            fig_pdf_ph = px.line(df_ph, x='fecha', y='ph', markers=True, title="Evolución Histórica de pH")
-            fig_pdf_ph.add_hline(y=6, line_dash="dash", line_color="red")
-            fig_pdf_ph.add_hline(y=9, line_dash="dash", line_color="red")
-            fig_pdf_ph.update_layout(width=700, height=300, margin=dict(l=10, r=10, t=30, b=10))
+        # ... código donde cargas tus datos ...
+
+# --- PEGA ESTE BLOQUE DESDE AQUÍ ---
+   plt.figure(figsize=(10, 4))
+   plt.plot(datos['fecha'], datos['ph'], color='#1f77b4', marker='o', linestyle='-')
+   plt.title('Análisis de Tendencias Históricas', fontsize=14, fontweight='bold', pad=15)
+   plt.xlabel('Fecha', fontsize=11)
+   plt.ylabel('pH', fontsize=11)
+   plt.grid(True, linestyle='--', alpha=0.6)
+
+# Guarda la imagen directamente en la misma carpeta sin depender de Chrome
+   plt.savefig('grafica_ph.png', bbox_inches='tight', dpi=150)
+   plt.close()
+# --- HASTA AQUÍ ---
+
+# ... código que sigue para armar el informe (este no lo toques) ...
             
             img_bytes = fig_pdf_ph.to_image(format="png")
             img_stream = io.BytesIO(img_bytes)
