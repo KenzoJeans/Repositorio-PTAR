@@ -5,6 +5,8 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import date, datetime
+import io
+from fpdf import FPDF
  
 # ─────────────────────────────────────────────
 # 1. CONFIGURACIÓN DE PÁGINA
@@ -150,7 +152,153 @@ LAYOUT_BASE = dict(
     margin=dict(l=20, r=20, t=30, b=20),
     font=dict(color='#CCC'),
 )
- 
+# ─────────────────────────────────────────────
+# 6. FUNCIÓN EXPORTAR PDF (NUEVO)
+# ─────────────────────────────────────────────
+class PTAR_PDF_Report(FPDF):
+    def header(self):
+        # Fondo decorativo superior
+        self.set_fill_color(30, 30, 46) # #1E1E2E
+        self.rect(0, 0, 210, 35, 'F')
+        
+        # Texto del encabezado
+        self.set_font("Helvetica", "B", 14)
+        self.set_text_color(255, 255, 255)
+        self.set_y(10)
+        self.cell(0, 8, "KENZO JEANS SAS - GESTIÓN AMBIENTAL", ln=True, align="C")
+        self.set_font("Helvetica", "", 10)
+        self.cell(0, 6, "Reporte Ejecutivo de Control de Calidad PTAR", ln=True, align="C")
+        self.ln(12)
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font("Helvetica", "I", 8)
+        self.set_text_color(128, 128, 128)
+        self.cell(0, 10, f"Página {self.page_no()}/{{nb}} - Generado automáticamente via SGA", align="C")
+
+def generar_pdf_bytes(df_v, df_t, r_fechas):
+    pdf = PTAR_PDF_Report()
+    pdf.alias_nb_pages()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=20)
+    
+    # --- METADATA DEL REPORTE ---
+    pdf.set_y(40)
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.set_text_color(46, 46, 78) # #2E2E4E
+    pdf.cell(0, 8, f"Resumen de Operación Ambiental", ln=True)
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    pdf.ln(3)
+    
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_text_color(50, 50, 50)
+    f_inicio = r_fechas[0].strftime('%d/%m/%Y') if r_fechas else 'N/A'
+    f_fin = r_fechas[1].strftime('%d/%m/%Y') if r_fechas else 'N/A'
+    pdf.cell(100, 6, f"Periodo Evaluado: {f_inicio} al {f_fin}", ln=False)
+    pdf.cell(0, 6, f"Fecha de Emisión: {datetime.now().strftime('%d/%m/%Y %H:%M')}", ln=True, align="R")
+    pdf.ln(5)
+    
+    # --- PROCESAMIENTO DE RECUADROS / KPIS ---
+    avg_ph = df_v['ph'].replace(0, np.nan).mean() if not df_v.empty else 0
+    avg_temp = df_v['temp'].replace(0, np.nan).mean() if not df_v.empty else 0
+    avg_sst = df_v['sst'].replace(0, np.nan).mean() if not df_v.empty else 0
+    
+    avg_sst_sal = df_t['sst'].replace(0, np.nan).mean() if not df_t.empty else 0
+    sst_ent = df_v['sst'].replace(0, np.nan).mean() if not df_v.empty else 0
+    remocion = max(0, (1 - avg_sst_sal / sst_ent) * 100) if sst_ent and sst_ent > 0 else 0.0
+
+    # Tabla de KPIs Principales
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.set_fill_color(240, 242, 246)
+    pdf.set_text_color(0, 0, 0)
+    
+    # Encabezados KPI
+    pdf.cell(45, 8, "Métrica Indicador", border=1, fill=True, align="C")
+    pdf.cell(45, 8, "Valor Promedio", border=1, fill=True, align="C")
+    pdf.cell(50, 8, "Estado Norma", border=1, fill=True, align="C")
+    pdf.cell(50, 8, "Límite Permisible", border=1, fill=True, align="C")
+    pdf.ln()
+    
+    pdf.set_font("Helvetica", "", 10)
+    # Fila pH
+    pdf.cell(45, 8, "pH Vertimientos", border=1)
+    pdf.cell(45, 8, f"{avg_ph:.2f}" if avg_ph else "—", border=1, align="C")
+    status_ph = "CUMPLE" if (6 <= avg_ph <= 9) else "ALERTA"
+    pdf.cell(50, 8, status_ph, border=1, align="C")
+    pdf.cell(50, 8, "6.0 - 9.0 Units", border=1, align="C")
+    pdf.ln()
+    
+    # Fila Temp
+    pdf.cell(45, 8, "Temperatura", border=1)
+    pdf.cell(45, 8, f"{avg_temp:.1f} °C" if avg_temp else "—", border=1, align="C")
+    status_t = "CUMPLE" if avg_temp <= 40 else "ALERTA"
+    pdf.cell(50, 8, status_t, border=1, align="C")
+    pdf.cell(50, 8, "Máx 40.0 °C", border=1, align="C")
+    pdf.ln()
+
+    # Fila SST
+    pdf.cell(45, 8, "SST Entrada", border=1)
+    pdf.cell(45, 8, f"{avg_sst:.1f} mg/L" if avg_sst else "—", border=1, align="C")
+    pdf.cell(50, 8, f"Eficiencia: {remocion:.1f}%", border=1, align="C")
+    pdf.cell(50, 8, "Control Interno", border=1, align="C")
+    pdf.ln()
+    pdf.ln(5)
+
+    # --- INCLUSIÓN DE GRÁFICAS REGENERADAS COMO IMÁGENES ---
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.set_text_color(46, 46, 78)
+    pdf.cell(0, 8, "Análisis de Tendencias Históricas", ln=True)
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    pdf.ln(4)
+
+    try:
+        # Re-crear gráfica rápida de pH para el PDF usando plotly estático
+        df_ph = df_v.dropna(subset=['fecha']).sort_values('fecha')
+        if not df_ph.empty:
+            fig_pdf_ph = px.line(df_ph, x='fecha', y='ph', markers=True, title="Evolución Histórica de pH")
+            fig_pdf_ph.add_hline(y=6, line_dash="dash", line_color="red")
+            fig_pdf_ph.add_hline(y=9, line_dash="dash", line_color="red")
+            fig_pdf_ph.update_layout(width=700, height=300, margin=dict(l=10, r=10, t=30, b=10))
+            
+            img_bytes = fig_pdf_ph.to_image(format="png")
+            img_stream = io.BytesIO(img_bytes)
+            pdf.image(img_stream, w=180, h=75)
+            pdf.ln(5)
+    except Exception as e:
+        pdf.set_font("Helvetica", "I", 9)
+        pdf.cell(0, 6, f"(Nota: No se pudo renderizar la gráfica de pH en tiempo real: {str(e)})", ln=True)
+        pdf.ln(5)
+
+    # --- TABLA DETALLADA DE FILAS ---
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.set_text_color(46, 46, 78)
+    pdf.cell(0, 8, "Registros Recientes de Vertimientos", ln=True)
+    pdf.ln(2)
+    
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.set_fill_color(30, 30, 46)
+    pdf.set_text_color(255, 255, 255)
+    pdf.cell(35, 7, "Fecha", border=1, fill=True, align="C")
+    pdf.cell(55, 7, "Proceso", border=1, fill=True, align="C")
+    pdf.cell(30, 7, "pH", border=1, fill=True, align="C")
+    pdf.cell(35, 7, "Temp (°C)", border=1, fill=True, align="C")
+    pdf.cell(35, 7, "SST (mg/L)", border=1, fill=True, align="C")
+    pdf.ln()
+
+    pdf.set_font("Helvetica", "", 9)
+    pdf.set_text_color(0, 0, 0)
+    
+    # Tomar los últimos 10 registros para no sobrecargar el PDF de páginas redundantes
+    df_preview = df_v.sort_values('fecha', ascending=False).head(12)
+    for idx, row in df_preview.iterrows():
+        pdf.cell(35, 6, str(row['fecha']), border=1, align="C")
+        pdf.cell(55, 6, str(row['proceso'])[:25] if 'proceso' in row else 'General', border=1)
+        pdf.cell(30, 6, f"{row['ph']:.2f}", border=1, align="C")
+        pdf.cell(35, 6, f"{row['temp']:.1f}", border=1, align="C")
+        pdf.cell(35, 6, f"{row['sst']:.1f}", border=1, align="C")
+        pdf.ln()
+        
+    return pdf.output(dest='S').encode('latin1')
 # ─────────────────────────────────────────────
 # 6. CARGA DE DATOS
 # ─────────────────────────────────────────────
