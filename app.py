@@ -427,6 +427,24 @@ try:
                     ]
         else:
             st.info("Carga datos de vertimientos para habilitar filtro de fechas.")
+         # --- BOTÓN DE DESCARGA PDF EN EL SIDEBAR (NUEVO) ---
+        st.markdown("---")
+        st.subheader("🖨️ Exportar Información")
+        if not df_vert_filtrado.empty:
+            with st.spinner("Preparando reporte PDF..."):
+                try:
+                    pdf_data = generar_pdf_bytes(df_vert_filtrado, df_tratada_filtrada, rango)
+                    st.download_button(
+                        label="📥 Descargar Resumen PDF",
+                        data=pdf_data,
+                        file_name=f"SGA_Reporte_PTAR_{datetime.now().strftime('%Y%m%d')}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+                except Exception as e_pdf:
+                    st.error(f"Error generando PDF: {e_pdf}")
+        else:
+            st.caption("No hay datos filtrados para exportar.")
  
         st.markdown("---")
         st.caption("SGA v2.0 · Kenzo Jeans SAS")
