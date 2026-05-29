@@ -7,3 +7,5 @@ fpdf
 kaleido
 numpy
 reportlab
+pip
+install
