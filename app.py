@@ -299,9 +299,13 @@ try:
     conn = st.connection("gsheets", type=GSheetsConnection)
 
 # Dataset 1: Vertimientos
-df_base_full = limpiar_datos_ptar(
-    conn.read(spreadsheet=URL_BASE, worksheet=WS_BASE, ttl=0)
-)
+try:
+    df_base_full = limpiar_datos_ptar(
+        conn.read(spreadsheet=URL_BASE, worksheet=WS_BASE, ttl=0)
+    )
+except Exception as e_b:
+    st.sidebar.warning(f"⚠️ Vertimientos no cargó: {e_b}")
+    df_base_full = pd.DataFrame()
 
 # Dataset 2: Agua Tratada
 try:
