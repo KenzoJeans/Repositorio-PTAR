@@ -254,7 +254,8 @@ def generar_pdf_bytes(df_v, df_t, r_fechas):
 
     try:
             plt.figure(figsize=(10, 4))
-            plt.plot(datos['fecha'], datos['ph'], color='#1f77b4', marker='o', linestyle='-')
+            df_graf = df_v.dropna(subset=['fecha', 'ph']).sort_values('fecha')
+            plt.plot(df_graf['fecha'], df_graf['ph'], color='#1f77b4', marker='o', linestyle='-')
             plt.title('Análisis de Tendencias Históricas', fontsize=14, fontweight='bold', pad=15)
             plt.xlabel('Fecha', fontsize=11)
             plt.ylabel('pH', fontsize=11)
