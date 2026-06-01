@@ -65,17 +65,12 @@ with col_titulo:
     st.title("SGA - Gestión Integral PTAR - Kenzo Jeans SAS")
  
 # ─────────────────────────────────────────────
-# 3. URLS DE HOJAS
-# ─────────────────────────────────────────────
-URL_BASE      = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=0#gid=0"
-URL_TRATADA   = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=1338797542#gid=1338797542"
-URL_MANTO     = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=746789412#gid=746789412"
-URL_QUIMICOS  = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=170562532#gid=170562532"
- 
-# Nombres EXACTOS de las pestañas en Google Sheets
-# ⚠️ Ajusta estos valores si los nombres difieren
+# 3. URL BASE (un solo spreadsheet, varias pestañas)
+URL_BASE = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek"
+
+# Nombres exactos de las pestañas
 WS_BASE     = "vertimiento"
-WS_TRATADA  = "agua tratada"
+WS_TRATADA  = "agua_tratada"
 WS_MANTO    = "mantenimiento"
 WS_QUIMICOS = "kardex"
  
@@ -303,34 +298,36 @@ def generar_pdf_bytes(df_v, df_t, r_fechas):
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
 
-    # Dataset 1: Vertimientos — SIN spreadsheet= (usa el secrets por defecto)
-    df_base_full = limpiar_datos_ptar(conn.read(ttl=0))
+# Dataset 1: Vertimientos
+df_base_full = limpiar_datos_ptar(
+    conn.read(spreadsheet=URL_BASE, worksheet=WS_BASE, ttl=0)
+)
 
-    # Dataset 2: Agua Tratada — SIN worksheet=
-    try:
-        df_tratada = limpiar_datos_ptar(
-            conn.read(spreadsheet=URL_TRATADA, worksheet="agua_tratada", ttl=0)
-        )
-    except Exception as e_t:
-        st.sidebar.warning(f"⚠️ Agua Tratada no cargó: {e_t}")
-        df_tratada = pd.DataFrame()
+# Dataset 2: Agua Tratada
+try:
+    df_tratada = limpiar_datos_ptar(
+        conn.read(spreadsheet=URL_BASE, worksheet=WS_TRATADA, ttl=0)
+    )
+except Exception as e_t:
+    st.sidebar.warning(f"⚠️ Agua Tratada no cargó: {e_t}")
+    df_tratada = pd.DataFrame()
 
-    # Dataset 3: Mantenimiento — SIN worksheet=
-    try:
-        df_manto_raw = conn.read(spreadsheet=URL_MANTO, ttl=0)
-        df_manto_raw.columns = df_manto_raw.columns.str.strip()
-        df_manto = df_manto_raw.copy()
-    except Exception as e_m:
-        st.sidebar.warning(f"⚠️ Mantenimiento no cargó: {e_m}")
-        df_manto = pd.DataFrame()
+# Dataset 3: Mantenimiento
+try:
+    df_manto_raw = conn.read(spreadsheet=URL_BASE, worksheet=WS_MANTO, ttl=0)
+    df_manto_raw.columns = df_manto_raw.columns.str.strip()
+    df_manto = df_manto_raw.copy()
+except Exception as e_m:
+    st.sidebar.warning(f"⚠️ Mantenimiento no cargó: {e_m}")
+    df_manto = pd.DataFrame()
 
-    # Dataset 4: Kardex — SIN worksheet=
-    try:
-        df_kardex = conn.read(spreadsheet=URL_QUIMICOS, ttl=0)
-        df_kardex.columns = df_kardex.columns.str.strip().str.upper()
-    except Exception as e_k:
-        st.sidebar.warning(f"⚠️ Kardex no cargó: {e_k}")
-        df_kardex = pd.DataFrame()
+# Dataset 4: Kardex
+try:
+    df_kardex = conn.read(spreadsheet=URL_BASE, worksheet=WS_QUIMICOS, ttl=0)
+    df_kardex.columns = df_kardex.columns.str.strip().str.upper()
+except Exception as e_k:
+    st.sidebar.warning(f"⚠️ Kardex no cargó: {e_k}")
+    df_kardex = pd.DataFrame()
  
     # ─────────────────────────────────────────────
     # 7. SIDEBAR — FILTROS
