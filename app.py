@@ -68,7 +68,7 @@ with col_titulo:
 # 3. URLS DE HOJAS
 # ─────────────────────────────────────────────
 URL_BASE      = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=0#gid=0"
-URL_TRATADA   = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?usp=sharing"
+URL_TRATADA   = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=1338797542#gid=1338797542"
 URL_MANTO     = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=746789412#gid=746789412"
 URL_QUIMICOS  = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=170562532#gid=170562532"
  
@@ -309,7 +309,7 @@ try:
     # Dataset 2: Agua Tratada — SIN worksheet=
     try:
         df_tratada = limpiar_datos_ptar(
-            conn.read(spreadsheet=URL_TRATADA, worksheet=WS_TRATADA, ttl=0)
+            conn.read(spreadsheet=URL_TRATADA, ttl=0)
         )
     except Exception as e_t:
         st.sidebar.warning(f"⚠️ Agua Tratada no cargó: {e_t}")
