@@ -75,7 +75,7 @@ URL_QUIMICOS  = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2C
 # Nombres EXACTOS de las pestañas en Google Sheets
 # ⚠️ Ajusta estos valores si los nombres difieren
 WS_BASE     = "vertimiento"
-WS_TRATADA  = "agua tratada"
+WS_TRATADA  = "agua_tratada"
 WS_MANTO    = "mantenimiento"
 WS_QUIMICOS = "kardex"
  
@@ -309,7 +309,7 @@ try:
     # Dataset 2: Agua Tratada — SIN worksheet=
     try:
         df_tratada = limpiar_datos_ptar(
-            conn.read(spreadsheet=URL_TRATADA, worksheet="1338797542", ttl=0)
+            conn.read(spreadsheet=URL_TRATADA, worksheet="agua_tratada", ttl=0)
         )
     except Exception as e_t:
         st.sidebar.warning(f"⚠️ Agua Tratada no cargó: {e_t}")
