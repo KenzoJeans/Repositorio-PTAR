@@ -66,7 +66,7 @@ with col_titulo:
  
 # ─────────────────────────────────────────────
 # 3. URL BASE (un solo spreadsheet, varias pestañas)
-URL_BASE = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek"
+URL_BASE = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?usp=sharing"
 
 # Nombres exactos de las pestañas
 WS_BASE     = "vertimiento"
@@ -295,7 +295,7 @@ def generar_pdf_bytes(df_v, df_t, r_fechas):
 # ─────────────────────────────────────────────
 # 6. CARGA DE DATOS
 # ─────────────────────────────────────────────
-conn = st.connection("gsheets", type=GSheetsConnection)  # ← sin indentación
+conn = st.connection("gsheets", type=GSheetsConnection)   # ← sin indentación
 
 # Dataset 1: Vertimientos
 try:
