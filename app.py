@@ -295,7 +295,7 @@ def generar_pdf_bytes(df_v, df_t, r_fechas):
 # ─────────────────────────────────────────────
 # 6. CARGA DE DATOS
 # ─────────────────────────────────────────────
-    conn = st.connection("gsheets", type=GSheetsConnection)
+conn = st.connection("gsheets", type=GSheetsConnection)  # ← sin indentación
 
 # Dataset 1: Vertimientos
 try:
