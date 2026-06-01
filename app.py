@@ -510,21 +510,26 @@ LAYOUT_BASE = dict(
 )
 
 # ─────────────────────────────────────────────
-# 6. CARGA DE DATOS
+# 6. CARGA DE DATOS (CORREGIDO)
 # ─────────────────────────────────────────────
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
 
+    # Pestaña principal (por defecto la primera)
     df_base_full = limpiar_datos_ptar(conn.read(ttl=0))
 
     try:
-        df_tratada = limpiar_datos_ptar(conn.read(spreadsheet=URL_TRATADA, ttl=0))
+        # Forzamos la lectura de la pestaña específica usando 'worksheet'
+        df_tratada = limpiar_datos_ptar(
+            conn.read(spreadsheet=URL_TRATADA, worksheet="agua tratada", ttl=0)
+        )
     except Exception as e_t:
         st.sidebar.warning(f"⚠️ Agua Tratada no cargó: {e_t}")
         df_tratada = pd.DataFrame()
 
     try:
-        df_manto_raw = conn.read(spreadsheet=URL_MANTO, ttl=0)
+        # Forzamos la lectura de la pestaña de mantenimiento
+        df_manto_raw = conn.read(spreadsheet=URL_MANTO, worksheet="mantenimiento", ttl=0)
         df_manto_raw.columns = df_manto_raw.columns.str.strip()
         df_manto = df_manto_raw.copy()
     except Exception as e_m:
@@ -532,12 +537,12 @@ try:
         df_manto = pd.DataFrame()
 
     try:
-        df_kardex = conn.read(spreadsheet=URL_QUIMICOS, ttl=0)
+        # Forzamos la lectura de la pestaña del kardex de químicos
+        df_kardex = conn.read(spreadsheet=URL_QUIMICOS, worksheet="kardex", ttl=0)
         df_kardex.columns = df_kardex.columns.str.strip().str.upper()
     except Exception as e_k:
         st.sidebar.warning(f"⚠️ Kardex no cargó: {e_k}")
         df_kardex = pd.DataFrame()
-
     # ─────────────────────────────────────────────
     # 7. SIDEBAR
     # ─────────────────────────────────────────────
