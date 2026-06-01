@@ -75,7 +75,7 @@ URL_QUIMICOS  = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2C
 # Nombres EXACTOS de las pestañas en Google Sheets
 # ⚠️ Ajusta estos valores si los nombres difieren
 WS_BASE     = "vertimiento"
-WS_TRATADA  = "agua_tratada"
+WS_TRATADA  = "agua tratada"
 WS_MANTO    = "mantenimiento"
 WS_QUIMICOS = "kardex"
  
