@@ -179,7 +179,7 @@ def generar_pdf_bytes(df_v, df_t, r_fechas):
     pdf.set_y(40)
     pdf.set_font("Helvetica", "B", 12)
     pdf.set_text_color(46, 46, 78)
-    pdf.cell(0, 8, "Resumen de Operación Ambiental", ln=True)
+    pdf.cell(0, 8, limpiar_texto_pdf("Resumen de Operación Ambiental"), ln=True)
     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
     pdf.ln(3)
 
@@ -187,7 +187,7 @@ def generar_pdf_bytes(df_v, df_t, r_fechas):
     pdf.set_text_color(50, 50, 50)
     f_inicio = r_fechas[0].strftime('%d/%m/%Y') if r_fechas else 'N/A'
     f_fin    = r_fechas[1].strftime('%d/%m/%Y') if r_fechas else 'N/A'
-    pdf.cell(100, 6, f"Periodo Evaluado: {f_inicio} al {f_fin}", ln=False)
+    pdf.cell(100, 6, limpiar_texto_pdf(f"Periodo Evaluado: {f_inicio} al {f_fin}"), ln=False)
     pdf.cell(0,   6, f"Fecha de Emisión: {datetime.now().strftime('%d/%m/%Y %H:%M')}",
              ln=True, align="R")
     pdf.ln(5)
@@ -234,7 +234,7 @@ def generar_pdf_bytes(df_v, df_t, r_fechas):
     # ── Gráfica de pH ──
     pdf.set_font("Helvetica", "B", 12)
     pdf.set_text_color(46, 46, 78)
-    pdf.cell(0, 8, "Análisis de Tendencias Históricas", ln=True)
+    pdf.cell(0, 8, limpiar_texto_pdf("Análisis de Tendencias Históricas"), ln=True)
     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
     pdf.ln(4)
 
@@ -281,7 +281,7 @@ def generar_pdf_bytes(df_v, df_t, r_fechas):
     # ── Tabla de registros recientes ──
     pdf.set_font("Helvetica", "B", 11)
     pdf.set_text_color(46, 46, 78)
-    pdf.cell(0, 8, "Registros Recientes de Vertimientos", ln=True)
+    pdf.cell(0, 8, limpiar_texto_pdf("Registros Recientes de Vertimientos"), ln=True)
     pdf.ln(2)
 
     pdf.set_font("Helvetica", "B", 9)
