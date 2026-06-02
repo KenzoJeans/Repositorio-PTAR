@@ -109,9 +109,9 @@ def limpiar_datos_ptar(df):
         else:
             df[col] = 0.0
     if 'fecha' not in df.columns and 'fecha_h' in df.columns:
-        df['fecha'] = pd.to_datetime(df['fecha_h'], errors='coerce').dt.date
+        df['fecha'] = pd.to_datetime(df['fecha_h'], dayfirst=True, errors='coerce').dt.date
     elif 'fecha' in df.columns:
-        df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce').dt.date
+        df['fecha'] = pd.to_datetime(df['fecha'], dayfirst=True, errors='coerce').dt.date
     df = df.dropna(how='all')
     return df
 
