@@ -138,6 +138,16 @@ LAYOUT_BASE = dict(
 # ─────────────────────────────────────────────
 # 6. MÓDULO PDF (fpdf2 + matplotlib)
 # ─────────────────────────────────────────────
+def limpiar_texto_pdf(texto):
+    reemplazos = {
+        '–': '-', '—': '-', '\u2013': '-', '\u2014': '-',
+        'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ú': 'u',
+        'Á': 'A', 'É': 'E', 'Í': 'I', 'Ó': 'O', 'Ú': 'U',
+        'ñ': 'n', 'Ñ': 'N', '°': 'o', 'ü': 'u', 'Ü': 'U',
+    }
+    for orig, reempl in reemplazos.items():
+        texto = str(texto).replace(orig, reempl)
+    return texto
 class PTAR_PDF_Report(FPDF):
     def header(self):
         self.set_fill_color(30, 30, 46)
