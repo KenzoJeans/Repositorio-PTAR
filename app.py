@@ -153,67 +153,44 @@ def _pdf_txt(s):
     # Remove anything outside latin-1
     return s.encode('latin-1', errors='ignore').decode('latin-1')
  
+def _s(txt):
+    """Sanitiza texto a latin-1 seguro para fpdf Helvetica."""
+    if not isinstance(txt, str):
+        txt = str(txt)
+    for k, v in {
+        '\u2013': '-', '\u2014': '-', '\u2015': '-',
+        '\u2018': "'", '\u2019': "'",
+        '\u201c': '"', '\u201d': '"',
+        '\u2192': '->', '\u00b0': 'deg',
+        '\u00e1': 'a', '\u00e9': 'e', '\u00ed': 'i',
+        '\u00f3': 'o', '\u00fa': 'u', '\u00f1': 'n',
+        '\u00c1': 'A', '\u00c9': 'E', '\u00cd': 'I',
+        '\u00d3': 'O', '\u00da': 'U', '\u00d1': 'N',
+        '\u00fc': 'u', '\u00e4': 'a', '\u00f6': 'o',
+    }.items():
+        txt = txt.replace(k, v)
+    return txt.encode('latin-1', errors='replace').decode('latin-1')
+ 
+ 
 class PTAR_PDF_Report(FPDF):
-    @staticmethod
-    def _s(txt):
-        """Sanitiza texto a latin-1 seguro para Helvetica."""
-        if not isinstance(txt, str):
-            txt = str(txt)
-        for k, v in {
-            '\u2013': '-', '\u2014': '-', '\u2015': '-',
-            '\u2018': "'", '\u2019': "'",
-            '\u201c': '"', '\u201d': '"',
-            '\u2192': '->', '\u00b0': 'deg',
-            '\u00e1': 'a', '\u00e9': 'e', '\u00ed': 'i',
-            '\u00f3': 'o', '\u00fa': 'u', '\u00f1': 'n',
-            '\u00c1': 'A', '\u00c9': 'E', '\u00cd': 'I',
-            '\u00d3': 'O', '\u00da': 'U', '\u00d1': 'N',
-            '\u00fc': 'u', '\u00e4': 'a', '\u00f6': 'o',
-        }.items():
-            txt = txt.replace(k, v)
-        return txt.encode('latin-1', errors='replace').decode('latin-1')
- 
-    # fpdf2 usa "text" no "txt" — firmas exactas para que el override funcione
-    def cell(self, w=0, h=0, text='', border=0, ln='', align='',
-             fill=False, link='', center=False, markdown=False,
-             new_x='RIGHT', new_y='TOP'):
-        return super().cell(w=w, h=h, text=self._s(text), border=border,
-                            ln=ln, align=align, fill=fill, link=link,
-                            center=center, markdown=markdown,
-                            new_x=new_x, new_y=new_y)
- 
-    def multi_cell(self, w, h=0, text='', border=0, align='J',
-                   fill=False, split_only=False, link='', ln=3,
-                   max_line_height=None, markdown=False, print_sh=False,
-                   new_x='LMARGIN', new_y='NEXT', wrapmode='WORD',
-                   dry_run=False, output=None, center=False, padding=None):
-        return super().multi_cell(w=w, h=h, text=self._s(text), border=border,
-                                  align=align, fill=fill, split_only=split_only,
-                                  link=link, ln=ln,
-                                  max_line_height=max_line_height,
-                                  markdown=markdown, print_sh=print_sh,
-                                  new_x=new_x, new_y=new_y, wrapmode=wrapmode,
-                                  dry_run=dry_run, output=output,
-                                  center=center, padding=padding)
- 
     def header(self):
         self.set_fill_color(30, 30, 46)
         self.rect(0, 0, 210, 35, 'F')
         self.set_font("Helvetica", "B", 14)
         self.set_text_color(255, 255, 255)
         self.set_y(10)
-        super().cell(0, 8, "KENZO JEANS SAS - GESTION AMBIENTAL", ln=True, align="C")
+        self.cell(0, 8, txt=_s("KENZO JEANS SAS - GESTION AMBIENTAL"), ln=True, align="C")
         self.set_font("Helvetica", "", 10)
-        super().cell(0, 6, "Reporte Ejecutivo de Control de Calidad PTAR", ln=True, align="C")
+        self.cell(0, 6, txt=_s("Reporte Ejecutivo de Control de Calidad PTAR"), ln=True, align="C")
         self.ln(12)
  
     def footer(self):
         self.set_y(-15)
         self.set_font("Helvetica", "I", 8)
         self.set_text_color(128, 128, 128)
-        super().cell(0, 10,
-                     f"Pagina {self.page_no()}/{{nb}} - Generado automaticamente via SGA",
-                     align="C")
+        self.cell(0, 10,
+                  txt=_s(f"Pagina {self.page_no()}/{{nb}} - Generado automaticamente via SGA"),
+                  align="C")
  
  
 def generar_pdf_bytes(df_v, df_t, r_fechas):
