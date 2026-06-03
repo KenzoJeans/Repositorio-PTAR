@@ -182,7 +182,7 @@ class PTAR_PDF_Report(FPDF):
         self.set_y(10)
         self.cell(0, 8, txt=_s("KENZO JEANS SAS - GESTION AMBIENTAL"), ln=True, align="C")
         self.set_font("Helvetica", "", 10)
-        self.cell(0, 6, txt=_s("Reporte Ejecutivo de Control de Calidad PTAR"), ln=True, align="C")
+        self.cell(0, 6, txt=_s("Reporte mensual de control de calidad PTAR"), ln=True, align="C")
         self.ln(12)
         self.set_x(20)
 
