@@ -10,7 +10,7 @@ from fpdf import FPDF
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-
+ 
 # ─────────────────────────────────────────────
 # 1. CONFIGURACIÓN DE PÁGINA
 # ─────────────────────────────────────────────
@@ -19,7 +19,7 @@ st.set_page_config(
     layout="wide",
     page_icon="💧"
 )
-
+ 
 st.markdown("""
 <style>
     div.block-container { padding-top: 1rem; padding-bottom: 0rem; }
@@ -53,7 +53,7 @@ st.markdown("""
     .card-equipo:hover { transform: translateY(-2px); }
 </style>
 """, unsafe_allow_html=True)
-
+ 
 # ─────────────────────────────────────────────
 # 2. ENCABEZADO
 # ─────────────────────────────────────────────
@@ -65,7 +65,7 @@ with col_logo:
         st.markdown("**KENZO JEANS**")
 with col_titulo:
     st.title("SGA - Gestión Integral PTAR - Kenzo Jeans SAS")
-
+ 
 # ─────────────────────────────────────────────
 # 3. URLS DE HOJAS  ← gid corregidos
 # ─────────────────────────────────────────────
@@ -73,7 +73,7 @@ URL_BASE     = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2CO
 URL_TRATADA  = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=1338797542#gid=1338797542"
 URL_MANTO    = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=746789412#gid=746789412"
 URL_QUIMICOS = "https://docs.google.com/spreadsheets/d/12iJMb1ujmfzng1NQ7o4iD2COwvkMvxwOrU7s92UT4Ek/edit?resourcekey=&gid=170562532#gid=170562532"
-
+ 
 # ─────────────────────────────────────────────
 # 4. FUNCIÓN DE LIMPIEZA UNIFICADA
 # ─────────────────────────────────────────────
@@ -114,7 +114,7 @@ def limpiar_datos_ptar(df):
         df['fecha'] = pd.to_datetime(df['fecha'], dayfirst=True, errors='coerce').dt.date
     df = df.dropna(how='all')
     return df
-
+ 
 # ─────────────────────────────────────────────
 # 5. HELPERS
 # ─────────────────────────────────────────────
@@ -122,76 +122,123 @@ def color_ph(val):
     if 6 <= val <= 9:   return "#4CAF50"
     elif (5 <= val < 6) or (9 < val <= 10): return "#FFEB3B"
     return "#F44336"
-
+ 
 def color_temp(val):
     if val <= 30:  return "#4CAF50"
     elif val <= 40: return "#FFEB3B"
     return "#F44336"
-
+ 
 LAYOUT_BASE = dict(
     paper_bgcolor='rgba(0,0,0,0)',
     plot_bgcolor='rgba(0,0,0,0)',
     margin=dict(l=20, r=20, t=30, b=20),
     font=dict(color='#CCC'),
 )
-
+ 
 # ─────────────────────────────────────────────
 # 6. MÓDULO PDF (fpdf2 + matplotlib)
 # ─────────────────────────────────────────────
-def limpiar_texto_pdf(texto):
-    reemplazos = {
-        '–': '-', '—': '-', '\u2013': '-', '\u2014': '-',
-        'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ú': 'u',
-        'Á': 'A', 'É': 'E', 'Í': 'I', 'Ó': 'O', 'Ú': 'U',
-        'ñ': 'n', 'Ñ': 'N', '°': 'o', 'ü': 'u', 'Ü': 'U',
+ 
+def _pdf_txt(s):
+    """Convierte texto a latin-1 seguro para fpdf2 con Helvetica."""
+    replacements = {
+        '–': '-', '—': '-', '→': '->',
+        '°': 'deg', 'é': 'e', 'ó': 'o',
+        'ñ': 'n', 'ú': 'u', 'á': 'a',
+        'í': 'i', 'à': 'a', 'ü': 'u',
+        'ö': 'o', 'ä': 'a',
     }
-    for orig, reempl in reemplazos.items():
-        texto = str(texto).replace(orig, reempl)
-    return texto
+    for k, v in replacements.items():
+        s = s.replace(k, v)
+    # Remove anything outside latin-1
+    return s.encode('latin-1', errors='ignore').decode('latin-1')
+ 
 class PTAR_PDF_Report(FPDF):
+    @staticmethod
+    def _s(txt):
+        """Sanitiza texto a latin-1 seguro para Helvetica."""
+        if not isinstance(txt, str):
+            txt = str(txt)
+        for k, v in {
+            '\u2013': '-', '\u2014': '-', '\u2015': '-',
+            '\u2018': "'", '\u2019': "'",
+            '\u201c': '"', '\u201d': '"',
+            '\u2192': '->', '\u00b0': 'deg',
+            '\u00e1': 'a', '\u00e9': 'e', '\u00ed': 'i',
+            '\u00f3': 'o', '\u00fa': 'u', '\u00f1': 'n',
+            '\u00c1': 'A', '\u00c9': 'E', '\u00cd': 'I',
+            '\u00d3': 'O', '\u00da': 'U', '\u00d1': 'N',
+            '\u00fc': 'u', '\u00e4': 'a', '\u00f6': 'o',
+        }.items():
+            txt = txt.replace(k, v)
+        return txt.encode('latin-1', errors='replace').decode('latin-1')
+ 
+    # fpdf2 usa "text" no "txt" — firmas exactas para que el override funcione
+    def cell(self, w=0, h=0, text='', border=0, ln='', align='',
+             fill=False, link='', center=False, markdown=False,
+             new_x='RIGHT', new_y='TOP'):
+        return super().cell(w=w, h=h, text=self._s(text), border=border,
+                            ln=ln, align=align, fill=fill, link=link,
+                            center=center, markdown=markdown,
+                            new_x=new_x, new_y=new_y)
+ 
+    def multi_cell(self, w, h=0, text='', border=0, align='J',
+                   fill=False, split_only=False, link='', ln=3,
+                   max_line_height=None, markdown=False, print_sh=False,
+                   new_x='LMARGIN', new_y='NEXT', wrapmode='WORD',
+                   dry_run=False, output=None, center=False, padding=None):
+        return super().multi_cell(w=w, h=h, text=self._s(text), border=border,
+                                  align=align, fill=fill, split_only=split_only,
+                                  link=link, ln=ln,
+                                  max_line_height=max_line_height,
+                                  markdown=markdown, print_sh=print_sh,
+                                  new_x=new_x, new_y=new_y, wrapmode=wrapmode,
+                                  dry_run=dry_run, output=output,
+                                  center=center, padding=padding)
+ 
     def header(self):
         self.set_fill_color(30, 30, 46)
         self.rect(0, 0, 210, 35, 'F')
         self.set_font("Helvetica", "B", 14)
         self.set_text_color(255, 255, 255)
         self.set_y(10)
-        self.cell(0, 8, "KENZO JEANS SAS - GESTIÓN AMBIENTAL", ln=True, align="C")
+        super().cell(0, 8, "KENZO JEANS SAS - GESTION AMBIENTAL", ln=True, align="C")
         self.set_font("Helvetica", "", 10)
-        self.cell(0, 6, "Reporte Ejecutivo de Control de Calidad PTAR", ln=True, align="C")
+        super().cell(0, 6, "Reporte Ejecutivo de Control de Calidad PTAR", ln=True, align="C")
         self.ln(12)
-
+ 
     def footer(self):
         self.set_y(-15)
         self.set_font("Helvetica", "I", 8)
         self.set_text_color(128, 128, 128)
-        self.cell(0, 10,
-                  f"Página {self.page_no()}/{{nb}} — Generado automáticamente via SGA",
-                  align="C")
-
-
+        super().cell(0, 10,
+                     f"Pagina {self.page_no()}/{{nb}} - Generado automaticamente via SGA",
+                     align="C")
+ 
+ 
 def generar_pdf_bytes(df_v, df_t, r_fechas):
     pdf = PTAR_PDF_Report()
     pdf.alias_nb_pages()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=20)
-
+ 
     # ── Metadata ──
     pdf.set_y(40)
     pdf.set_font("Helvetica", "B", 12)
     pdf.set_text_color(46, 46, 78)
-    pdf.cell(0, 8, limpiar_texto_pdf("Resumen de Operación Ambiental"), ln=True)
+    pdf.cell(0, 8, "Resumen de Operacion Ambiental", ln=True)
     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
     pdf.ln(3)
-
+ 
     pdf.set_font("Helvetica", "", 10)
     pdf.set_text_color(50, 50, 50)
     f_inicio = r_fechas[0].strftime('%d/%m/%Y') if r_fechas else 'N/A'
     f_fin    = r_fechas[1].strftime('%d/%m/%Y') if r_fechas else 'N/A'
-    pdf.cell(100, 6, limpiar_texto_pdf(f"Periodo Evaluado: {f_inicio} al {f_fin}"), ln=False)
+    pdf.cell(100, 6, f"Periodo Evaluado: {f_inicio} al {f_fin}", ln=False)
     pdf.cell(0,   6, f"Fecha de Emisión: {datetime.now().strftime('%d/%m/%Y %H:%M')}",
              ln=True, align="R")
     pdf.ln(5)
-
+ 
     # ── KPIs ──
     avg_ph      = df_v['ph'].replace(0, np.nan).mean()   if not df_v.empty else 0
     avg_temp    = df_v['temp'].replace(0, np.nan).mean() if not df_v.empty else 0
@@ -200,26 +247,26 @@ def generar_pdf_bytes(df_v, df_t, r_fechas):
     sst_ent     = avg_sst
     remocion    = max(0, (1 - avg_sst_sal / sst_ent) * 100) \
                   if sst_ent and sst_ent > 0 else 0.0
-
+ 
     pdf.set_font("Helvetica", "B", 10)
     pdf.set_fill_color(240, 242, 246)
     pdf.set_text_color(0, 0, 0)
     for titulo in ["Métrica Indicador", "Valor Promedio", "Estado Norma", "Límite Permisible"]:
         pdf.cell(45, 8, titulo, border=1, fill=True, align="C")
     pdf.ln()
-
+ 
     pdf.set_font("Helvetica", "", 10)
     filas_kpi = [
         ("pH Vertimientos",
-         f"{avg_ph:.2f}" if avg_ph else "—",
+         f"{avg_ph:.2f}" if avg_ph else "-",
          "CUMPLE" if avg_ph and 6 <= avg_ph <= 9 else "ALERTA",
-         "6.0 – 9.0"),
+         "6.0 - 9.0"),
         ("Temperatura",
-         f"{avg_temp:.1f} °C" if avg_temp else "—",
+         f"{avg_temp:.1f} C" if avg_temp else "-",
          "CUMPLE" if avg_temp and avg_temp <= 40 else "ALERTA",
-         "Máx 40.0 °C"),
+         "Max 40.0 degC"),
         ("SST Entrada",
-         f"{avg_sst:.1f} mg/L" if avg_sst else "—",
+         f"{avg_sst:.1f} mg/L" if avg_sst else "-",
          f"Eficiencia: {remocion:.1f}%",
          "Control Interno"),
     ]
@@ -230,18 +277,18 @@ def generar_pdf_bytes(df_v, df_t, r_fechas):
         pdf.cell(50, 8, limite,  border=1, align="C")
         pdf.ln()
     pdf.ln(5)
-
+ 
     # ── Gráfica de pH ──
     pdf.set_font("Helvetica", "B", 12)
     pdf.set_text_color(46, 46, 78)
-    pdf.cell(0, 8, limpiar_texto_pdf("Análisis de Tendencias Históricas"), ln=True)
+    pdf.cell(0, 8, "Analisis de Tendencias Historicas", ln=True)
     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
     pdf.ln(4)
-
+ 
     try:
         df_graf = df_v.dropna(subset=['fecha', 'ph']).sort_values('fecha')
         df_graf = df_graf[df_graf['ph'] > 0]
-
+ 
         if not df_graf.empty:
             buf_img = io.BytesIO()
             fig, ax = plt.subplots(figsize=(10, 4))
@@ -251,7 +298,7 @@ def generar_pdf_bytes(df_v, df_t, r_fechas):
             ax.axhline(y=6, color='red', linestyle='--', alpha=0.7, label='Límite inf (6)')
             ax.axhline(y=9, color='red', linestyle='--', alpha=0.7, label='Límite sup (9)')
             ax.axhspan(6, 9, alpha=0.05, color='green', label='Rango legal')
-            ax.set_title('Tendencia Histórica de pH — Vertimientos', fontsize=13,
+            ax.set_title('Tendencia Historica de pH - Vertimientos', fontsize=13,
                          fontweight='bold', pad=12)
             ax.set_xlabel('Fecha', fontsize=10)
             ax.set_ylabel('pH', fontsize=10)
@@ -271,56 +318,56 @@ def generar_pdf_bytes(df_v, df_t, r_fechas):
             pdf.set_text_color(120, 120, 120)
             pdf.cell(0, 6, "(Sin datos de pH para graficar en el periodo seleccionado)", ln=True)
             pdf.ln(3)
-
+ 
     except Exception as e:
         pdf.set_font("Helvetica", "I", 9)
         pdf.set_text_color(150, 50, 50)
         pdf.cell(0, 6, f"(No se pudo renderizar la gráfica: {str(e)})", ln=True)
         pdf.ln(3)
-
+ 
     # ── Tabla de registros recientes ──
     pdf.set_font("Helvetica", "B", 11)
     pdf.set_text_color(46, 46, 78)
-    pdf.cell(0, 8, limpiar_texto_pdf("Registros Recientes de Vertimientos"), ln=True)
+    pdf.cell(0, 8, "Registros Recientes de Vertimientos", ln=True)
     pdf.ln(2)
-
+ 
     pdf.set_font("Helvetica", "B", 9)
     pdf.set_fill_color(30, 30, 46)
     pdf.set_text_color(255, 255, 255)
-    for col, w in [("Fecha", 35), ("Proceso", 55), ("pH", 30), ("Temp (°C)", 35), ("SST (mg/L)", 35)]:
+    for col, w in [("Fecha", 35), ("Proceso", 55), ("pH", 30), ("Temp (C)", 35), ("SST (mg/L)", 35)]:
         pdf.cell(w, 7, col, border=1, fill=True, align="C")
     pdf.ln()
-
+ 
     pdf.set_font("Helvetica", "", 9)
     pdf.set_text_color(0, 0, 0)
     df_preview = df_v.sort_values('fecha', ascending=False).head(12)
     for _, row in df_preview.iterrows():
         fill = False
         pdf.set_fill_color(245, 247, 250)
-        pdf.cell(35, 6, str(row.get('fecha', '—')),     border=1, align="C", fill=fill)
+        pdf.cell(35, 6, str(row.get('fecha', '-')),     border=1, align="C", fill=fill)
         pdf.cell(55, 6, str(row.get('proceso', 'General'))[:25], border=1, fill=fill)
         pdf.cell(30, 6, f"{row['ph']:.2f}",             border=1, align="C", fill=fill)
         pdf.cell(35, 6, f"{row['temp']:.1f}",           border=1, align="C", fill=fill)
         pdf.cell(35, 6, f"{row['sst']:.1f}",            border=1, align="C", fill=fill)
         pdf.ln()
-
+ 
     # ── Declaración ──
     pdf.ln(8)
     pdf.set_font("Helvetica", "B", 11)
     pdf.set_text_color(46, 46, 78)
-    pdf.cell(0, 8, "Declaración de Conformidad", ln=True)
+    pdf.cell(0, 8, "Declaracion de Conformidad", ln=True)
     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
     pdf.ln(3)
     pdf.set_font("Helvetica", "", 9)
     pdf.set_text_color(60, 60, 60)
     pdf.multi_cell(0, 5,
-        "El presente reporte ha sido generado automáticamente por el Sistema de Gestión "
+        "El presente reporte ha sido generado automaticamente por el Sistema de Gestión "
         "Ambiental (SGA) de Kenzo Jeans SAS a partir de los datos registrados en la Planta "
         "de Tratamiento de Aguas Residuales (PTAR). Los valores corresponden al periodo "
         "indicado y tienen carácter informativo de seguimiento interno del programa de "
         "cumplimiento ambiental.")
     pdf.ln(10)
-
+ 
     # Líneas de firma
     pdf.set_draw_color(46, 46, 78)
     pdf.line(20,  pdf.get_y(), 90,  pdf.get_y())
@@ -328,21 +375,21 @@ def generar_pdf_bytes(df_v, df_t, r_fechas):
     pdf.ln(2)
     pdf.set_font("Helvetica", "", 8)
     pdf.set_text_color(80, 80, 80)
-    pdf.cell(95, 5, "Responsable PTAR — Kenzo Jeans SAS", align="C")
-    pdf.cell(95, 5, "Director Ambiental — Kenzo Jeans SAS", align="C")
-
+    pdf.cell(95, 5, "Responsable PTAR - Kenzo Jeans SAS", align="C")
+    pdf.cell(95, 5, "Director Ambiental - Kenzo Jeans SAS", align="C")
+ 
     return pdf.output(dest='S').encode('latin1')
-
-
+ 
+ 
 # ─────────────────────────────────────────────
 # 7. CARGA DE DATOS
 # ─────────────────────────────────────────────
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
-
+ 
     # Dataset 1: Vertimientos (hoja por defecto en secrets)
     df_base_full = limpiar_datos_ptar(conn.read(ttl=0))
-
+ 
     # Dataset 2: Agua Tratada — SIN worksheet= para evitar HTTP 400
     try:
         df_tratada = limpiar_datos_ptar(
@@ -351,7 +398,7 @@ try:
     except Exception as e_t:
         st.sidebar.warning(f"⚠️ Agua Tratada no cargó: {e_t}")
         df_tratada = pd.DataFrame()
-
+ 
     # Dataset 3: Mantenimiento — SIN worksheet=
     try:
         df_manto_raw = conn.read(spreadsheet=URL_MANTO, ttl=0)
@@ -360,7 +407,7 @@ try:
     except Exception as e_m:
         st.sidebar.warning(f"⚠️ Mantenimiento no cargó: {e_m}")
         df_manto = pd.DataFrame()
-
+ 
     # Dataset 4: Kardex — SIN worksheet=
     try:
         df_kardex = conn.read(spreadsheet=URL_QUIMICOS, ttl=0)
@@ -368,7 +415,7 @@ try:
     except Exception as e_k:
         st.sidebar.warning(f"⚠️ Kardex no cargó: {e_k}")
         df_kardex = pd.DataFrame()
-
+ 
     # ─────────────────────────────────────────────
     # 8. SIDEBAR — FILTROS
     # ─────────────────────────────────────────────
@@ -378,33 +425,33 @@ try:
             st.markdown("---")
         except Exception:
             pass
-
+ 
         st.header("🔍 Filtros Dashboard")
-
+ 
         df_vert_filtrado    = df_base_full.copy()
         df_tratada_filtrada = df_tratada.copy()
         df_manto_filtrado   = df_manto.copy()
-
+ 
         if not df_base_full.empty and 'proceso' in df_base_full.columns:
             procesos = sorted(df_base_full['proceso'].dropna().unique().tolist())
             sel = st.multiselect("Seleccionar Procesos:", procesos, default=procesos)
             df_vert_filtrado = df_vert_filtrado[df_vert_filtrado['proceso'].isin(sel)]
-
+ 
         filtro_q = st.text_input("Filtrar por Químico:", "")
-
+ 
         st.markdown("---")
         st.subheader("📅 Rango de Tiempo")
-
+ 
         rango      = None
         limite_inf = date(2024, 1, 1)
         limite_sup = date.today()
-
+ 
         fechas_maximas = []
         if not df_base_full.empty and 'fecha' in df_base_full.columns:
             f_max = df_base_full['fecha'].max()
             if f_max:
                 fechas_maximas.append(f_max)
-
+ 
         col_fecha_m = None
         if not df_manto.empty:
             col_fecha_m = next(
@@ -417,11 +464,11 @@ try:
                 ).dt.date.dropna()
                 if not fechas_m_raw.empty:
                     fechas_maximas.append(fechas_m_raw.max())
-
+ 
         if not df_base_full.empty and 'fecha' in df_base_full.columns:
             def_start = df_base_full['fecha'].min() or limite_inf
             def_end   = max(fechas_maximas) if fechas_maximas else limite_sup
-
+ 
             rango = st.date_input(
                 "Seleccionar fechas:",
                 [def_start, def_end],
@@ -429,7 +476,7 @@ try:
                 max_value=limite_sup,
                 key="sidebar_date_range"
             )
-
+ 
             if isinstance(rango, (list, tuple)) and len(rango) == 2:
                 inicio, fin = rango
                 df_vert_filtrado = df_vert_filtrado[
@@ -451,7 +498,7 @@ try:
                     ]
         else:
             st.info("Carga datos de vertimientos para habilitar filtro de fechas.")
-
+ 
         # ── Exportar PDF ──
         st.markdown("---")
         st.subheader("🖨️ Exportar Información")
@@ -475,10 +522,10 @@ try:
                         st.error(f"Error generando PDF: {e_pdf}")
         else:
             st.caption("No hay datos filtrados para exportar.")
-
+ 
         st.markdown("---")
         st.caption("SGA v2.0 · Kenzo Jeans SAS")
-
+ 
     # ─────────────────────────────────────────────
     # 9. PESTAÑAS
     # ─────────────────────────────────────────────
@@ -488,7 +535,7 @@ try:
         "🛠️ Mantenimiento",
         "🧪 Consumo de Químicos"
     ])
-
+ 
     # ══════════════════════════════════════════
     # TAB 1 — VERTIMIENTOS
     # ══════════════════════════════════════════
@@ -500,20 +547,20 @@ try:
             n_reg    = len(df_vert_filtrado)
             ph_ok    = avg_ph is not None and 6 <= avg_ph <= 9
             temp_ok  = avg_temp is not None and avg_temp <= 40
-
+ 
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("⚗️ pH Promedio",
                       f"{avg_ph:.2f}" if avg_ph else "—",
                       delta="✅ NORMA" if ph_ok else "⚠️ ALERTA",
                       delta_color="normal" if ph_ok else "inverse")
             m2.metric("🌡️ Temperatura Prom.",
-                      f"{avg_temp:.1f} °C" if avg_temp else "—",
+                      f"{avg_temp:.1f} C" if avg_temp else "-",
                       delta="✅ NORMAL" if temp_ok else "⚠️ ALTA",
                       delta_color="normal" if temp_ok else "inverse")
             m3.metric("🧱 SST Promedio", f"{avg_sst:.1f} mg/L" if avg_sst else "—")
             m4.metric("📋 Registros", n_reg)
             st.markdown("---")
-
+ 
             col1, col2 = st.columns(2)
             with col1:
                 st.write("**📈 Histórico de pH (Tintorería)**")
@@ -536,7 +583,7 @@ try:
                                        line=dict(color='#FFB300', dash='dot', width=1.5))
                 fig_ph.update_layout(**LAYOUT_BASE)
                 st.plotly_chart(fig_ph, use_container_width=True)
-
+ 
             with col2:
                 st.write("**📊 pH Promedio por Proceso**")
                 df_ph_p = (df_vert_filtrado.groupby('proceso')['ph']
@@ -552,7 +599,7 @@ try:
                 fig_ph_p.update_traces(textposition='outside', showlegend=False)
                 fig_ph_p.update_layout(**LAYOUT_BASE, xaxis_title="pH Promedio", yaxis_title="")
                 st.plotly_chart(fig_ph_p, use_container_width=True)
-
+ 
             col3, col4 = st.columns(2)
             with col3:
                 st.write("**🌡️ Tendencia de Temperatura**")
@@ -576,7 +623,7 @@ try:
                                        xaxis_title="Fecha", yaxis_title="°C",
                                        **LAYOUT_BASE)
                 st.plotly_chart(fig_temp, use_container_width=True)
-
+ 
             with col4:
                 st.write("**📊 Temperatura Promedio por Proceso**")
                 df_temp_p = (df_vert_filtrado.groupby('proceso')['temp']
@@ -592,7 +639,7 @@ try:
                 fig_tp.update_traces(textposition='outside', showlegend=False)
                 fig_tp.update_layout(**LAYOUT_BASE, xaxis_title="°C", yaxis_title="")
                 st.plotly_chart(fig_tp, use_container_width=True)
-
+ 
             col5, col6 = st.columns([1, 1.5])
             with col5:
                 st.write("**🍩 SST Promedio por Proceso**")
@@ -603,7 +650,7 @@ try:
                 fig_sst.update_traces(textinfo='label+percent')
                 fig_sst.update_layout(**LAYOUT_BASE)
                 st.plotly_chart(fig_sst, use_container_width=True)
-
+ 
             with col6:
                 st.write("**📈 Evolución de SST en el Tiempo**")
                 df_sst_t = df_vert_filtrado.dropna(subset=['fecha']).sort_values('fecha')
@@ -614,7 +661,7 @@ try:
                 fig_sst_t.update_layout(**LAYOUT_BASE,
                                         xaxis_title="Fecha", yaxis_title="SST (mg/L)")
                 st.plotly_chart(fig_sst_t, use_container_width=True)
-
+ 
             st.markdown("---")
             with st.expander("📄 Ver tabla de datos de vertimientos"):
                 cols_mostrar = [c for c in df_vert_filtrado.columns if c not in ['fecha_h']]
@@ -622,7 +669,7 @@ try:
                              use_container_width=True, hide_index=True)
         else:
             st.warning("⚠️ Ajusta los filtros para ver datos de vertimientos.")
-
+ 
     # ══════════════════════════════════════════
     # TAB 2 — AGUA TRATADA
     # ══════════════════════════════════════════
@@ -641,7 +688,7 @@ try:
                            if avg_sst_sal > 0 else 100.0
             ph_ok_t   = avg_ph_t is not None and 6 <= avg_ph_t <= 9
             temp_ok_t = avg_temp_t is not None and avg_temp_t <= 40
-
+ 
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("💧 SST Salida (Prom)",
                       f"{avg_sst_sal:.1f} mg/L" if avg_sst_sal else "—",
@@ -657,7 +704,7 @@ try:
             c4.metric("📦 Volumen Tratado",
                       f"{total_caudal:.1f} m³" if total_caudal else "—")
             st.markdown("---")
-
+ 
             col_a, col_b = st.columns(2)
             with col_a:
                 st.write("**📈 pH del Agua Tratada**")
@@ -680,7 +727,7 @@ try:
                                          line=dict(color='#FFB300', dash='dot', width=1.5))
                 fig_ph_t.update_layout(**LAYOUT_BASE)
                 st.plotly_chart(fig_ph_t, use_container_width=True)
-
+ 
             with col_b:
                 st.write("**🌡️ Temperatura de Salida**")
                 fig_temp_t = go.Figure()
@@ -696,7 +743,7 @@ try:
                                          xaxis_title="Fecha", yaxis_title="°C",
                                          **LAYOUT_BASE)
                 st.plotly_chart(fig_temp_t, use_container_width=True)
-
+ 
             col_c, col_d = st.columns(2)
             with col_c:
                 st.write("**💧 Remoción de Sólidos (Entrada vs. Salida)**")
@@ -718,7 +765,7 @@ try:
                             f"({sst_ent:.1f} → {avg_sst_sal:.1f} mg/L)")
                 else:
                     st.warning("Sin datos de SST para calcular eficiencia.")
-
+ 
             with col_d:
                 st.write("**📊 Volumen de Agua Tratada por Día**")
                 df_cau = df_tratada_filtrada[df_tratada_filtrada['caudal'] > 0]\
@@ -741,7 +788,7 @@ try:
                     st.plotly_chart(fig_cau, use_container_width=True)
                 else:
                     st.info("Sin registros de caudal > 0 en el periodo.")
-
+ 
             if df_tratada_filtrada['cond'].sum() > 0:
                 st.markdown("---")
                 st.write("**⚡ Conductividad del Agua Tratada**")
@@ -753,7 +800,7 @@ try:
                                        xaxis_title="Fecha",
                                        yaxis_title="Conductividad (µS/cm)")
                 st.plotly_chart(fig_cond, use_container_width=True)
-
+ 
             with st.expander("📄 Ver tabla de datos de agua tratada"):
                 st.dataframe(df_tratada_filtrada.sort_values('fecha', ascending=False),
                              use_container_width=True, hide_index=True)
@@ -764,7 +811,7 @@ try:
             - Que la cuenta de servicio tenga acceso al Spreadsheet
             - Que la hoja tenga columnas: `Fecha`, `pH Tratada`, `Temperatura Tratada`, `SST Tratada`, `Caudal tratado`
             """)
-
+ 
     # ══════════════════════════════════════════
     # TAB 3 — MANTENIMIENTO
     # ══════════════════════════════════════════
@@ -780,7 +827,7 @@ try:
                     df_m[col_fecha_m2], dayfirst=True, errors='coerce').dt.date
             if 'SALUD' in df_m.columns:
                 df_m['SALUD'] = pd.to_numeric(df_m['SALUD'], errors='coerce').fillna(0)
-
+ 
             if 'SALUD' in df_m.columns:
                 salud_prom = df_m['SALUD'].mean()
                 equi_crit  = (df_m.groupby('EQUIPO')['SALUD'].last() < 6).sum() \
@@ -796,7 +843,7 @@ try:
                 km3.metric("🔴 Equipos Críticos",    equi_crit)
                 km4.metric("📊 Salud Promedio",       f"{salud_prom:.1f}/10")
                 st.markdown("---")
-
+ 
             if 'EQUIPO' in df_m.columns:
                 equipos = df_m['EQUIPO'].dropna().unique()
                 cols_eq = st.columns(min(3, len(equipos)))
@@ -821,7 +868,7 @@ try:
                             <small style="color:#888;display:block;margin-top:8px;">Última revisión: {fecha_v}</small>
                             {"<small style='color:#AAA;'>"+str(observ)[:80]+"…</small>" if pd.notna(observ) and str(observ).strip() else ""}
                         </div>""", unsafe_allow_html=True)
-
+ 
             st.markdown("---")
             col_v1, col_v2 = st.columns([2, 1])
             with col_v1:
@@ -838,7 +885,7 @@ try:
                     fig_heat.update_layout(margin=dict(l=10, r=10, t=10, b=10),
                                            height=300, paper_bgcolor='rgba(0,0,0,0)')
                     st.plotly_chart(fig_heat, use_container_width=True)
-
+ 
             with col_v2:
                 st.write("**📢 Alertas de Mantenimiento**")
                 if 'EQUIPO' in df_m.columns and 'SALUD' in df_m.columns:
@@ -851,7 +898,7 @@ try:
                             st.warning(f"**{row['EQUIPO']}** — {nivel}\n\nSalud: {row['SALUD']}/10")
                     else:
                         st.success("✅ Todos los equipos operan en rangos seguros.")
-
+ 
             if 'EQUIPO' in df_m.columns and 'SALUD' in df_m.columns:
                 st.markdown("---")
                 st.write("**📈 Evolución de Salud por Equipo**")
@@ -868,21 +915,21 @@ try:
                                       yaxis=dict(range=[0, 10.5]),
                                       xaxis_title="Fecha", yaxis_title="Salud (0–10)")
                 st.plotly_chart(fig_evo, use_container_width=True)
-
+ 
             with st.expander("📝 Ver historial completo de intervenciones"):
                 cols_ok = [c for c in df_m.columns if c not in ['MARCA TEMPORAL']]
                 st.dataframe(df_m[cols_ok].sort_values(col_fecha_m2, ascending=False),
                              use_container_width=True, hide_index=True)
         else:
             st.warning("⚠️ No se cargaron datos de mantenimiento.")
-
+ 
     # ══════════════════════════════════════════
     # TAB 4 — QUÍMICOS
     # ══════════════════════════════════════════
     with t4:
         st.subheader("📦 Gestión de Inventarios y Consumo - Kenzo Jeans")
         STOCK_INICIAL = {"SULFATO DE ALUMINIO": 119, "CAL": 79, "POLIMERO": 24.118}
-
+ 
         if not df_kardex.empty:
             df_k = df_kardex.copy()
             df_k['CANTIDAD'] = pd.to_numeric(
@@ -892,7 +939,7 @@ try:
                 errors='coerce').fillna(0)
             df_k['FECHA'] = pd.to_datetime(
                 df_k['FECHA'], dayfirst=True, errors='coerce').dt.date
-
+ 
             df_k_periodo = df_k.copy()
             if isinstance(rango, (list, tuple)) and len(rango) == 2:
                 inicio, fin = rango
@@ -903,13 +950,13 @@ try:
                 df_k_periodo = df_k_periodo[
                     df_k_periodo['NOMBRE DEL QUIMICO'].astype(str)
                     .str.contains(filtro_q, case=False, na=False)]
-
+ 
             df_k['NETO'] = df_k.apply(
                 lambda x: x['CANTIDAD']
                 if str(x.get('QUE PROCESO VA A REALIZAR', '')).upper() == 'ENTRADA'
                 else -x['CANTIDAD'], axis=1)
             resumen_inv = df_k.groupby('NOMBRE DEL QUIMICO')['NETO'].sum().to_dict()
-
+ 
             st.markdown("#### 📦 Stock Actual")
             ck1, ck2, ck3 = st.columns(3)
             cols_k = [ck1, ck2, ck3]
@@ -918,7 +965,7 @@ try:
                 alerta = "⚠️ REABASTECER" if actual < 20 else "✅ STOCK OK"
                 cols_k[i].metric(prod, f"{actual:.1f} kg", delta=alerta,
                                  delta_color="inverse" if actual < 20 else "normal")
-
+ 
             st.markdown("**Nivel de stock relativo:**")
             col_bars = st.columns(3)
             for i, (prod, stock_ini) in enumerate(STOCK_INICIAL.items()):
@@ -934,13 +981,13 @@ try:
                         </div>
                         <small style="color:{color_s};">{pct:.0f}% del stock inicial</small>
                     </div>""", unsafe_allow_html=True)
-
+ 
             st.markdown("---")
             st.markdown("#### 📊 Consumo en el Periodo Seleccionado")
             df_salidas_p    = df_k_periodo[
                 df_k_periodo['QUE PROCESO VA A REALIZAR'].astype(str).str.upper() == 'SALIDA']
             consumo_periodo = df_salidas_p.groupby('NOMBRE DEL QUIMICO')['CANTIDAD'].sum().to_dict()
-
+ 
             cs1, cs2, cs3 = st.columns(3)
             quimicos_obj  = ["SULFATO DE ALUMINIO", "CAL", "POLIMERO"]
             cols_sal      = [cs1, cs2, cs3]
@@ -949,7 +996,7 @@ try:
                 n_reg_q   = len(df_salidas_p[df_salidas_p['NOMBRE DEL QUIMICO'] == q])
                 cols_sal[i].metric(label=f"Salidas: {q}", value=f"{total_sal:.2f} kg",
                                    delta=f"{n_reg_q} registros", delta_color="normal")
-
+ 
             st.markdown("---")
             col_dona, col_tend = st.columns([1, 1.5])
             with col_dona:
@@ -966,7 +1013,7 @@ try:
                                        texttemplate='%{label}<br>%{percent}<br>%{value:.1f} kg')
                 fig_dona.update_layout(**LAYOUT_BASE, height=320)
                 st.plotly_chart(fig_dona, use_container_width=True)
-
+ 
             with col_tend:
                 st.write("**📈 Consumo Acumulado en el Tiempo**")
                 df_sal_t = df_k_periodo[
@@ -985,7 +1032,7 @@ try:
                     st.plotly_chart(fig_tend, use_container_width=True)
                 else:
                     st.info("Sin registros de salida en el periodo.")
-
+ 
             st.markdown("---")
             st.write("**🔮 Proyección de Agotamiento de Stock**")
             proj_cols = st.columns(3)
@@ -1018,7 +1065,7 @@ try:
                             st.info(f"{prod}: sin consumo detectado.")
                     else:
                         st.info(f"{prod}: insuficientes datos para proyectar.")
-
+ 
             st.markdown("---")
             with st.expander("📋 Historial detallado de movimientos"):
                 cols_vista = [c for c in ['FECHA','NOMBRE DEL QUIMICO',
@@ -1033,7 +1080,7 @@ try:
                     use_container_width=True, hide_index=True)
         else:
             st.warning("⚠️ No se detectaron datos en la hoja de Químicos.")
-
+ 
 except Exception as e:
     st.error(f"❌ Error general en la aplicación: {e}")
     st.exception(e)
