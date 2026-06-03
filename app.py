@@ -167,31 +167,17 @@ def _s(txt):
         txt = txt.replace(k, v)
     return txt.encode('latin-1', errors='replace').decode('latin-1')
 
-class PDF(FPDF):
+class PTAR_PDF_Report(FPDF):
     def header(self):
-        # --- 3. AGREGAR LOGO DE KENZO ---
-        # Parámetros: ruta_imagen, posX, posY, ancho
-        # Asegúrate de tener 'logo_kenzo.png' en la misma carpeta que tu script
-        try:
-            self.image('logo_kenzo.png', 10, 8, 30) 
-        except Exception:
-            pass # Si no encuentra la imagen en pruebas, no crashea el script
-
-        # Título del reporte (Centrado)
-        self.set_font('Arial', 'B', 15)
-        self.set_xy(45, 15) # Mueve el texto a la derecha del logo y un poco abajo
-        self.cell(120, 10, 'Reporte de Gestión Ambiental - PTAR', border=0, align='C')
-        self.ln(15) # Salto de línea después del título
-
-        # --- 1. ARREGLAR TABLA CORRIDA EN EL ENCABEZADO ---
-        # Forzamos el cursor al margen izquierdo exacto (10) antes de dibujar la tabla
-        self.set_x(10) 
-        
-        # (A partir de aquí, coloca el código que ya tienes para imprimir 
-        # las celdas del encabezado de tu tabla, por ejemplo:)
-        # self.set_font('Arial', 'B', 10)
-        # self.cell(40, 10, 'FECHA', border=1, align='C')
-        # ... etc.
+        self.set_fill_color(30, 30, 46)
+        self.rect(0, 0, 210, 35, 'F')
+        self.set_font("Helvetica", "B", 14)
+        self.set_text_color(255, 255, 255)
+        self.set_y(10)
+        self.cell(0, 8, txt=_s("KENZO JEANS SAS - GESTION AMBIENTAL"), ln=True, align="C")
+        self.set_font("Helvetica", "", 10)
+        self.cell(0, 6, txt=_s("Reporte Ejecutivo de Control de Calidad PTAR"), ln=True, align="C")
+        self.ln(12)
 
     def footer(self):
         self.set_y(-15)
