@@ -184,8 +184,7 @@ class PTAR_PDF_Report(FPDF):
         self.set_font("Helvetica", "", 10)
         self.cell(0, 6, txt=_s("Reporte Ejecutivo de Control de Calidad PTAR"), ln=True, align="C")
         self.ln(12)
-
-        self.set_x(10)
+        self.set_x(5)
 
     def footer(self):
         self.set_y(-15)
