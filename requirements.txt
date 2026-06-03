@@ -3,7 +3,7 @@ st-gsheets-connection
 pandas
 plotly
 streamlit-plotly-events
-fpdf
+fpdf2
 kaleido
 numpy
 reportlab
