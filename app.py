@@ -171,6 +171,12 @@ class PTAR_PDF_Report(FPDF):
     def header(self):
         self.set_fill_color(30, 30, 46)
         self.rect(0, 0, 210, 35, 'F')
+
+        try:
+            self.image("logo-white-kenzo.png", x=10, y=7, w=25)
+        except Exception:
+            pass
+            
         self.set_font("Helvetica", "B", 14)
         self.set_text_color(255, 255, 255)
         self.set_y(10)
@@ -178,6 +184,8 @@ class PTAR_PDF_Report(FPDF):
         self.set_font("Helvetica", "", 10)
         self.cell(0, 6, txt=_s("Reporte Ejecutivo de Control de Calidad PTAR"), ln=True, align="C")
         self.ln(12)
+
+        self.set_x(10)
 
     def footer(self):
         self.set_y(-15)
