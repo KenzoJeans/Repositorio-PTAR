@@ -341,8 +341,8 @@ def generar_pdf_bytes(df_v, df_t, r_fechas):
         "El presente reporte ha sido generado automaticamente por el Sistema de Gestión "
         "Ambiental (SGA) de Kenzo Jeans SAS a partir de los datos registrados en la Planta "
         "de Tratamiento de Aguas Residuales (PTAR). Los valores corresponden al periodo "
-        "indicado y tienen carácter informativo de seguimiento interno del programa de "
-        "cumplimiento ambiental.")
+        "indicado en el filtro del dashboard y tienen carácter informativo de seguimiento interno del Sistema de "
+        "Gestión Ambiental.")
     pdf.ln(10)
  
     # Líneas de firma
@@ -352,8 +352,8 @@ def generar_pdf_bytes(df_v, df_t, r_fechas):
     pdf.ln(2)
     pdf.set_font("Helvetica", "", 8)
     pdf.set_text_color(80, 80, 80)
-    pdf.cell(95, 5, "Responsable PTAR - Kenzo Jeans SAS", align="C")
-    pdf.cell(95, 5, "Director Ambiental - Kenzo Jeans SAS", align="C")
+    pdf.cell(95, 5, "Analista de Gestión Ambiental - Kenzo Jeans SAS", align="C")
+    pdf.cell(95, 5, "Líder de Gestión Ambiental - Kenzo Jeans SAS", align="C")
  
     return pdf.output(dest='S').encode('latin1')
  
