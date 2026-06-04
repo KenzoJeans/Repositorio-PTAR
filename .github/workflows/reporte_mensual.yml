@@ -1,0 +1,36 @@
+name: Reporte Mensual PTAR - Kenzo Jeans
+
+on:
+  # Corre automaticamente el dia 1 de cada mes a las 7:00 AM (hora Colombia UTC-5)
+  schedule:
+    - cron: '0 12 1 * *'   # 12:00 UTC = 7:00 AM Colombia
+
+  # Permite correrlo manualmente desde GitHub para hacer pruebas
+  workflow_dispatch:
+
+jobs:
+  enviar_reporte:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clonar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependencias
+        run: |
+          pip install pandas fpdf gspread oauth2client openpyxl numpy
+
+      - name: Generar y enviar reporte PDF
+        env:
+          # Credenciales Outlook (configurar en GitHub Secrets)
+          OUTLOOK_USER: ${{ secrets.OUTLOOK_USER }}
+          OUTLOOK_PASS: ${{ secrets.OUTLOOK_PASS }}
+          # Contenido del JSON de la cuenta de servicio de Google
+          GSHEETS_CREDENTIALS: ${{ secrets.GSHEETS_CREDENTIALS }}
+        run: |
+          python send_report.py
