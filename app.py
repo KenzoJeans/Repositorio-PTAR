@@ -1097,7 +1097,7 @@ try:
     # ══════════════════════════════════════════
     with t4:
         st.subheader("📦 Gestión de Inventarios y Consumo - Kenzo Jeans")
-        STOCK_INICIAL = {"SULFATO DE ALUMINIO": 119, "CAL": 79, "POLIMERO": 24.118}
+        STOCK_INICIAL = {"SULFATO DE ALUMINIO": 119, "CAL": 79, "POLIMERO": 24.118, "POLICLORURO DE ALUMINIO": 0}
 
         if not df_kardex.empty:
             df_k = df_kardex.copy()
