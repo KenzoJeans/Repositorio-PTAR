@@ -8,3 +8,4 @@ kaleido
 numpy
 reportlab
 matplotlib
+starlette<0.39.0
