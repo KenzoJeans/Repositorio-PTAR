@@ -1,11 +1,3 @@
-"""
-send_report.py
-Genera el PDF del reporte PTAR mensual de Kenzo Jeans
-y lo envia por correo via Outlook SMTP.
-
-Ejecutado automaticamente por GitHub Actions el dia 1 de cada mes.
-"""
-
 import os
 import io
 import json
