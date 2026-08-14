@@ -23,7 +23,7 @@ jobs:
 
       - name: Instalar dependencias
         run: |
-          pip install pandas fpdf gspread oauth2client openpyxl numpy
+          pip install pandas fpdf gspread oauth2client openpyxl numpy matplotlib
 
       - name: Generar y enviar reporte PDF
         env:
