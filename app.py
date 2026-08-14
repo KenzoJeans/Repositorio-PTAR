@@ -310,6 +310,11 @@ def generar_pdf_bytes(df_v, df_t, df_m, df_k, r_fechas):
         pdf.ln(3)
 
     # ── Tabla de registros recientes Vertimientos ──
+    # ── Tabla de registros recientes Vertimientos ──
+    # CORRECCIÓN BUG 2: Validar espacio restante antes de dibujar la tabla
+    if pdf.get_y() > 220:
+        pdf.add_page()
+        
     pdf.set_font("Helvetica", "B", 11)
     pdf.set_text_color(46, 46, 78)
     pdf.cell(0, 8, "Registros Recientes de Vertimientos", ln=True)
@@ -324,7 +329,9 @@ def generar_pdf_bytes(df_v, df_t, df_m, df_k, r_fechas):
 
     pdf.set_font("Helvetica", "", 9)
     pdf.set_text_color(0, 0, 0)
-    df_preview = df_v.sort_values('fecha', ascending=False).head(12)
+    
+    # Reducimos de 12 a 10 registros para optimizar el espacio vertical
+    df_preview = df_v.sort_values('fecha', ascending=False).head(10)
     for _, row in df_preview.iterrows():
         fill = False
         pdf.set_fill_color(245, 247, 250)
@@ -334,7 +341,6 @@ def generar_pdf_bytes(df_v, df_t, df_m, df_k, r_fechas):
         pdf.cell(35, 6, f"{row['temp']:.1f}",           border=1, align="C", fill=fill)
         pdf.cell(35, 6, f"{row['sst']:.1f}",            border=1, align="C", fill=fill)
         pdf.ln()
-
 
     # ══════════════════════════════════════════
     # ── TAB 2: AGUA TRATADA ──
