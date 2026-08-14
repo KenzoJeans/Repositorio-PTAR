@@ -230,8 +230,13 @@ def generar_pdf_bytes(df_v, df_t, df_m, df_k, r_fechas):
     pdf.set_font("Helvetica", "B", 10)
     pdf.set_fill_color(240, 242, 246)
     pdf.set_text_color(0, 0, 0)
-    for titulo in ["Métrica Indicador", "Valor Promedio", "Estado Norma", "Límite Permisible"]:
-        pdf.cell(45, 8, _s(titulo), border=1, fill=True, align="C")
+    
+    # CORRECCIÓN BUG 1: Definir anchos coincidentes con las filas de datos
+    titulos = ["Métrica Indicador", "Valor Promedio", "Estado Norma", "Límite Permisible"]
+    anchos = [45, 45, 50, 50]
+    
+    for titulo, ancho in zip(titulos, anchos):
+        pdf.cell(ancho, 8, _s(titulo), border=1, fill=True, align="C")
     pdf.ln()
 
     pdf.set_font("Helvetica", "", 10)
