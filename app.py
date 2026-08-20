@@ -1068,40 +1068,75 @@ try:
 
             with col_v2:
                 st.write("**📢 Alertas de Mantenimiento**")
-                if 'EQUIPO' in df_m.columns and 'SALUD' in df_m.columns:
-                    pendientes = (df_m[df_m['SALUD'] < 7]
-                                  .sort_values(col_fecha_m2, ascending=False)
-                                  .drop_duplicates('EQUIPO'))
-                    if not pendientes.empty:
-                        for _, row in pendientes.iterrows():
-                            nivel = "🚨 CRÍTICO" if row['SALUD'] < 6 else "⚠️ PREVENTIVO"
-                            st.warning(f"**{row['EQUIPO']}** — {nivel}\n\nSalud: {row['SALUD']}/10")
-                    else:
-                        st.success("✅ Todos los equipos operan en rangos seguros.")
-
-            if 'EQUIPO' in df_m.columns and 'SALUD' in df_m.columns:
-                st.markdown("---")
-                st.write("**📈 Evolución de Salud por Equipo**")
-                fig_evo = px.line(df_m.sort_values(col_fecha_m2),
-                                  x=col_fecha_m2, y='SALUD', color='EQUIPO',
-                                  markers=True, template="plotly_dark",
-                                  color_discrete_sequence=['#4CAF50','#FFA726','#29B6F6',
-                                                           '#CE93D8','#F44336','#FFD54F'])
-                fig_evo.add_hrect(y0=0, y1=6, fillcolor="rgba(244,67,54,0.07)",
-                                  line_width=0, annotation_text="Zona crítica")
-                fig_evo.add_hrect(y0=6, y1=8, fillcolor="rgba(255,235,59,0.07)",
-                                  line_width=0, annotation_text="Zona preventiva")
-                fig_evo.update_layout(**LAYOUT_BASE, height=350,
-                                      yaxis=dict(range=[0, 10.5]),
-                                      xaxis_title="Fecha", yaxis_title="Salud (0–10)")
-                st.plotly_chart(fig_evo, use_container_width=True)
-
-            with st.expander("📝 Ver historial completo de intervenciones"):
-                cols_ok = [c for c in df_m.columns if c not in ['MARCA TEMPORAL']]
-                st.dataframe(df_m[cols_ok].sort_values(col_fecha_m2, ascending=False),
-                             use_container_width=True, hide_index=True)
-        else:
-            st.warning("⚠️ No se cargaron datos de mantenimiento.")
+                
+                # Utilizamos df_manto (el histórico completo) en lugar de df_manto_filtrado
+                if not df_manto.empty and 'EQUIPO' in df_manto.columns:
+                    # Preprocesar fechas del histórico
+                    df_hist = df_manto.copy()
+                    df_hist.columns = df_hist.columns.str.strip().str.upper()
+                    col_fecha_h = next((c for c in df_hist.columns if c.strip() == 'FECHA'), df_hist.columns[0])
+                    df_hist[col_fecha_h] = pd.to_datetime(df_hist[col_fecha_h], dayfirst=True, errors='coerce').dt.date
+                    
+                    # Frecuencias en días según "Cronograma de mantenimientos.pdf"
+                    frecuencias_dias = {
+                        "REJILLA": 1,
+                        "MALLA": 1,
+                        "BOMBA": 1,
+                        "DOSIFICAC": 1,
+                        "DRAGA": 7,
+                        "SEDIMENTA": 7,
+                        "FLOCULA": 7,
+                        "COAGULA": 7,
+                        "FILTRO": 7,
+                        "AGUA TRAT": 7,
+                        "RECIRCULA": 7,
+                        "LODO": 7, 
+                        "TORRE": 30,
+                        "ENFRIAMIEN": 30,
+                        "HOMOGENIZA": 180,
+                        "OXIDACION": 180
+                    }
+                    
+                    # Obtener la fecha del último mantenimiento de cada equipo en todo el histórico
+                    ultimos_mant = (df_hist.dropna(subset=[col_fecha_h])
+                                    .sort_values(col_fecha_h, ascending=True)
+                                    .drop_duplicates('EQUIPO', keep='last'))
+                    
+                    alertas_generadas = False
+                    hoy = date.today()
+                    
+                    for _, row in ultimos_mant.iterrows():
+                        equipo_nombre = str(row['EQUIPO']).strip().upper()
+                        
+                        # Buscar la frecuencia asignada comparando subcadenas
+                        dias_limite = 365 # Valor por defecto si no está en el cronograma
+                        for key, val in frecuencias_dias.items():
+                            if key in equipo_nombre:
+                                dias_limite = val
+                                break
+                        
+                        ultima_fecha = row[col_fecha_h]
+                        dias_transcurridos = (hoy - ultima_fecha).days if ultima_fecha else 999
+                        salud = float(row.get('SALUD', 10))
+                        
+                        # Criterio: Excede el tiempo del cronograma O la salud reportada es baja (< 7)
+                        if dias_transcurridos > dias_limite or salud < 7:
+                            alertas_generadas = True
+                            
+                            # Determinar el motivo principal de la alerta
+                            if dias_transcurridos > dias_limite:
+                                motivo = f"⏰ Atrasado ({dias_transcurridos} días desde última revisión. Límite: {dias_limite} días)"
+                                nivel = "🚨 CRÍTICO (Vencido)" if dias_transcurridos >= (dias_limite * 2) else "⚠️ PREVENTIVO (Vencido)"
+                            else:
+                                motivo = f"📉 Salud reportada baja ({salud}/10)"
+                                nivel = "🚨 CRÍTICO" if salud < 6 else "⚠️ PREVENTIVO"
+                                
+                            st.warning(f"**{row['EQUIPO']}** — {nivel}\n\n{motivo}")
+                            
+                    if not alertas_generadas:
+                        st.success("✅ Todos los equipos operan en rangos seguros y están al día con el cronograma.")
+                else:
+                    st.info("Sin datos históricos para calcular alertas.")
 
     # ══════════════════════════════════════════
     # TAB 4 — QUÍMICOS
