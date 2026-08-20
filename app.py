@@ -310,7 +310,6 @@ def generar_pdf_bytes(df_v, df_t, df_m, df_k, r_fechas):
         pdf.ln(3)
 
     # ── Tabla de registros recientes Vertimientos ──
-    # ── Tabla de registros recientes Vertimientos ──
     # CORRECCIÓN BUG 2: Validar espacio restante antes de dibujar la tabla
     if pdf.get_y() > 220:
         pdf.add_page()
@@ -993,9 +992,6 @@ try:
             """)
 
     # ══════════════════════════════════════════
-    # TAB 3 — MANTENIMIENTO
-    # ══════════════════════════════════════════
-    # ══════════════════════════════════════════
     # TAB 3 — MANTENIMIENTO (V2 - Enriquecida)
     # ══════════════════════════════════════════
     with t3:
@@ -1052,11 +1048,19 @@ try:
                 
                 # Validación fecha prox manual vs cálculo por frecuencia
                 prox_f = row.get(col_prox, None) if col_prox else None
-                dias_para_prox = (prox_f - hoy).days if pd.notna(prox_f) else (dias_limite - dias_trans)
                 
-                vencido = dias_trans > dias_limite or (pd.notna(prox_f) and dias_para_prox < 0)
+                if pd.notna(prox_f):
+                    dias_para_prox = (prox_f - hoy).days
+                    vencido = dias_para_prox < 0
+                    # Si hay fecha manual, es crítico si pasaron muchos días tras el vencimiento
+                    es_critico = salud_val < 6 or (vencido and dias_para_prox <= -dias_limite)
+                else:
+                    dias_para_prox = dias_limite - dias_trans
+                    vencido = dias_trans > dias_limite
+                    # Si no hay fecha manual, usamos los dias transcurridos vs la frecuencia
+                    es_critico = salud_val < 6 or (vencido and dias_trans >= dias_limite * 2)
                 
-                if salud_val < 6 or (vencido and dias_trans >= dias_limite * 2):
+                if es_critico:
                     categoria = "CRÍTICO"
                     color = "#F44336"
                     icono = "🚨"
@@ -1177,11 +1181,9 @@ try:
                 pendientes = df_ultimos[df_ultimos['CAT'].isin(["CRÍTICO", "PREVENTIVO"])]
                 if not pendientes.empty:
                     for _, row in pendientes.iterrows():
-                        d_trans = row['DIAS_TRANS']
-                        limite  = row['LIMITE']
-                        salud   = row['SALUD']
-                        if d_trans > limite:
-                            motivo = f"⏰ Atrasado: {d_trans} días sin revisión (Frecuencia: c/{limite} d)"
+                        salud = row['SALUD']
+                        if row['DIAS_PROX'] < 0:
+                            motivo = f"⏰ Vencido por {abs(row['DIAS_PROX'])} días respecto a su fecha límite."
                         else:
                             motivo = f"📉 Salud operativa baja ({salud}/10)"
                         st.warning(f"**{row['EQUIPO']}** — {row['ICONO']} {row['CAT']}\n\n{motivo}")
