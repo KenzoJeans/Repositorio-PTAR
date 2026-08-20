@@ -1022,24 +1022,32 @@ try:
             else:
                 df_m_full['SALUD'] = 10.0
 
-            # Frecuencias en días según cronograma PDF
+            # Frecuencias en días ajustadas (palabras más específicas primero)
             frecuencias_dias = {
-                "REJILLA": 1, "MALLA": 1, "BOMBA": 1, "DOSIFICAC": 1,
-                "DRAGA": 7, "SEDIMENTA": 7, "FLOCULA": 7, "COAGULA": 7,
-                "FILTRO": 7, "AGUA TRAT": 7, "RECIRCULA": 7, "LODO": 7,
-                "TORRE": 30, "ENFRIAMIEN": 30, "HOMOGENIZA": 180, "OXIDACION": 180
+                "BOMBA DOSIFICADORA": 1,
+                "DOSIFICAD": 1,
+                "REJILLA": 1,
+                "MALLA": 1,
+                "BOMBAS FILTRO": 180,
+                "BOMBA FILTRO": 180,
+                "DRAGA": 7,
+                "SEDIMENTA": 7,
+                "FLOCULA": 7,
+                "COAGULA": 7,
+                "FILTRO": 7,
+                "AGUA TRAT": 7,
+                "RECIRCULA": 7,
+                "LODO": 7,
+                "TORRE": 30,
+                "ENFRIAMIEN": 30,
+                "HOMOGENIZA": 180,
+                "OXIDACION": 180
             }
 
-            # Último registro por equipo en todo el histórico
-            df_ultimos = (df_m_full.dropna(subset=[col_fecha])
-                          .sort_values(col_fecha, ascending=True)
-                          .drop_duplicates('EQUIPO', keep='last')).copy()
-
-            hoy = date.today()
-            
-            # Calcular estado de vencimiento para cada equipo
             def evaluar_equipo(row):
                 eq_nom = str(row['EQUIPO']).strip().upper()
+                
+                # Buscar límite de días por palabra clave
                 dias_limite = 365
                 for k, v in frecuencias_dias.items():
                     if k in eq_nom:
@@ -1049,18 +1057,25 @@ try:
                 ult_f = row[col_fecha]
                 dias_trans = (hoy - ult_f).days if pd.notna(ult_f) else 999
                 salud_val  = float(row.get('SALUD', 10))
+                prox_f     = row.get(col_prox, None) if col_prox else None
                 
-                # Validación fecha prox manual vs cálculo por frecuencia
-                prox_f = row.get(col_prox, None) if col_prox else None
-                dias_para_prox = (prox_f - hoy).days if pd.notna(prox_f) else (dias_limite - dias_trans)
-                
-                vencido = dias_trans > dias_limite or (pd.notna(prox_f) and dias_para_prox < 0)
-                
-                if salud_val < 6 or (vencido and dias_trans >= dias_limite * 2):
+                # 1. Si hay fecha de próximo mantenimiento explícita, manda esa fecha
+                if pd.notna(prox_f):
+                    dias_para_prox = (prox_f - hoy).days
+                    vencido = dias_para_prox < 0
+                    dias_atraso = abs(dias_para_prox) if vencido else 0
+                else:
+                    # 2. Si no hay fecha explícita, se calcula por la frecuencia estipulada
+                    dias_para_prox = dias_limite - dias_trans
+                    vencido = dias_trans > dias_limite
+                    dias_atraso = dias_trans - dias_limite if vencido else 0
+
+                # Clasificación de estado
+                if salud_val < 6 or (vencido and dias_atraso >= 7):
                     categoria = "CRÍTICO"
                     color = "#F44336"
                     icono = "🚨"
-                elif salud_val < 8 or vencido:
+                elif salud_val < 8 or vencido or (0 <= dias_para_prox <= 3):
                     categoria = "PREVENTIVO"
                     color = "#FFEB3B"
                     icono = "⚠️"
