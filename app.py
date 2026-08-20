@@ -993,7 +993,7 @@ try:
             """)
 
     # ══════════════════════════════════════════
-    # TAB 3 — MANTENIMIENTO
+    # TAB 3 — MANTENIMIENTO (COMPLETO)
     # ══════════════════════════════════════════
     with t3:
         st.subheader("🛠️ Gestión y Control de Mantenimiento PTAR")
@@ -1018,12 +1018,12 @@ try:
             else:
                 df_m_full['SALUD'] = 10.0
 
-            # 3. CREAR df_ultimos (Paso clave antes de evaluarlo)
+            # 3. Obtener último registro histórico por equipo
             df_ultimos = (df_m_full.dropna(subset=[col_fecha])
                           .sort_values(col_fecha, ascending=True)
                           .drop_duplicates('EQUIPO', keep='last')).copy()
 
-            # 4. Diccionario de frecuencias
+            # 4. Frecuencias en días según cronograma técnico
             frecuencias_dias = {
                 "BOMBA DOSIFICADORA": 1,
                 "DOSIFICAD": 1,
@@ -1047,7 +1047,7 @@ try:
 
             hoy = date.today()
 
-            # 5. Función de evaluación
+            # 5. Evaluación de estado por equipo
             def evaluar_equipo(row):
                 eq_nom = str(row.get('EQUIPO', '')).strip().upper()
                 dias_limite = 365
@@ -1061,6 +1061,7 @@ try:
                 salud_val  = float(row.get('SALUD', 10))
                 prox_f     = row.get(col_prox, None) if col_prox else None
                 
+                # Prioridad a la fecha programada manual si existe
                 if pd.notna(prox_f):
                     dias_para_prox = (prox_f - hoy).days
                     vencido = dias_para_prox < 0
@@ -1085,6 +1086,176 @@ try:
                     
                 return pd.Series([categoria, color, icono, dias_trans, dias_limite, dias_para_prox],
                                  index=['CAT', 'COLOR', 'ICONO', 'DIAS_TRANS', 'LIMITE', 'DIAS_PROX'])
+
+            if not df_ultimos.empty:
+                df_eval = df_ultimos.apply(evaluar_equipo, axis=1)
+                df_ultimos = pd.concat([df_ultimos, df_eval], axis=1)
+
+            # ── 1. MÉTRICAS SUPERIORES ──
+            n_optimos = (df_ultimos['CAT'] == "ÓPTIMO").sum()
+            n_prevent = (df_ultimos['CAT'] == "PREVENTIVO").sum()
+            n_critico = (df_ultimos['CAT'] == "CRÍTICO").sum()
+            total_eq  = len(df_ultimos)
+            pct_cumpl = (n_optimos / total_eq * 100) if total_eq > 0 else 0
+
+            km1, km2, km3, km4 = st.columns(4)
+            km1.metric("💚 Equipos al Día", n_optimos)
+            km2.metric("🟡 En Alerta / Próximos", n_prevent)
+            km3.metric("🔴 Críticos / Vencidos", n_critico)
+            km4.metric("📈 % Cumplimiento", f"{pct_cumpl:.0f}%",
+                       delta="Meta: 100%" if pct_cumpl == 100 else f"{100-pct_cumpl:.0f}% pendiente",
+                       delta_color="normal" if pct_cumpl >= 80 else "inverse")
+            st.markdown("---")
+
+            # ── 2. FILTRO RÁPIDO Y TARJETAS ──
+            f_col1, _ = st.columns([1.8, 3])
+            with f_col1:
+                filtro_estado = st.radio(
+                    "Filtrar tarjetas por estado:",
+                    ["Todos", "🔴 Críticos", "🟡 Preventivos", "🟢 Óptimos"],
+                    horizontal=True
+                )
+
+            df_cards = df_ultimos.copy()
+            if filtro_estado == "🔴 Críticos":
+                df_cards = df_cards[df_cards['CAT'] == "CRÍTICO"]
+            elif filtro_estado == "🟡 Preventivos":
+                df_cards = df_cards[df_cards['CAT'] == "PREVENTIVO"]
+            elif filtro_estado == "🟢 Óptimos":
+                df_cards = df_cards[df_cards['CAT'] == "ÓPTIMO"]
+
+            if not df_cards.empty:
+                cols_eq = st.columns(min(3, len(df_cards)))
+                for i, (_, ult) in enumerate(df_cards.iterrows()):
+                    eq      = ult['EQUIPO']
+                    val_s   = ult['SALUD']
+                    color   = ult['COLOR']
+                    desc    = ult['CAT']
+                    icono   = ult['ICONO']
+                    fecha_v = ult[col_fecha]
+                    prox_v  = ult.get(col_prox, 'N/A')
+                    labor   = ult.get(col_labor, 'Mantenimiento preventivo')
+                    oper    = ult.get(col_oper, '')
+                    barra_w = int(min(10, max(0, val_s)) * 10)
+                    
+                    d_prox = ult['DIAS_PROX']
+                    if d_prox < 0:
+                        txt_prox = f"<span style='color:#F44336;font-weight:bold;'>Vencido hace {abs(d_prox)} días</span>"
+                    elif d_prox == 0:
+                        txt_prox = "<span style='color:#FFEB3B;font-weight:bold;'>¡Toca hoy!</span>"
+                    else:
+                        txt_prox = f"<span style='color:#4CAF50;'>En {d_prox} días ({prox_v})</span>"
+
+                    with cols_eq[i % 3]:
+                        st.markdown(f"""
+                        <div class="card-equipo" style="border-left:10px solid {color}; padding:15px; margin-bottom:15px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <h4 style="margin:0;color:white;font-size:15px;">{icono} {eq}</h4>
+                                <span style="background:{color}22; color:{color}; border:1px solid {color}; border-radius:4px; padding:2px 6px; font-size:10px; font-weight:bold;">{desc}</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; align-items:baseline; margin:8px 0 4px 0;">
+                                <span style="font-size:12px; color:#AAA;">Salud reportada:</span>
+                                <h3 style="margin:0;color:{color};">{val_s}/10</h3>
+                            </div>
+                            <div style="background:#333;border-radius:6px;height:6px;width:100%;margin-bottom:10px;">
+                                <div style="background:{color};border-radius:6px;height:6px;width:{barra_w}%;"></div>
+                            </div>
+                            <div style="font-size:11px; color:#CCC; line-height:1.5;">
+                                📅 <b>Última revisión:</b> {fecha_v} {f'({oper})' if oper else ''}<br>
+                                🔧 <b>Última labor:</b> {str(labor)[:40]}<br>
+                                ⏰ <b>Próx. intervención:</b> {txt_prox}
+                            </div>
+                        </div>""", unsafe_allow_html=True)
+            else:
+                st.info("No hay equipos en la categoría seleccionada.")
+
+            st.markdown("---")
+
+            # ── 3. MATRIZ DE SALUD Y ALERTAS ──
+            col_v1, col_v2 = st.columns([2, 1])
+            with col_v1:
+                st.write("**🌡️ Matriz de Salud por Equipo en el Tiempo**")
+                df_pivot = df_m_full.pivot_table(index='EQUIPO', columns=col_fecha,
+                                                values='SALUD', aggfunc='last').fillna(0)
+                df_pivot.columns = [str(c) for c in df_pivot.columns]
+                fig_heat = px.imshow(df_pivot,
+                                     labels=dict(x="Fecha", y="Equipo", color="Salud"),
+                                     color_continuous_scale=['#F44336','#FFEB3B','#4CAF50'],
+                                     zmin=0, zmax=10, aspect="auto",
+                                     template="plotly_dark", text_auto=True)
+                fig_heat.update_layout(margin=dict(l=10, r=10, t=10, b=10),
+                                       height=320, paper_bgcolor='rgba(0,0,0,0)')
+                st.plotly_chart(fig_heat, use_container_width=True)
+
+            with col_v2:
+                st.write("**📢 Alertas Activas del Cronograma**")
+                pendientes = df_ultimos[df_ultimos['CAT'].isin(["CRÍTICO", "PREVENTIVO"])]
+                if not pendientes.empty:
+                    for _, row in pendientes.iterrows():
+                        d_trans = row['DIAS_TRANS']
+                        limite  = row['LIMITE']
+                        salud   = row['SALUD']
+                        d_prox  = row['DIAS_PROX']
+                        
+                        if d_prox < 0:
+                            motivo = f"⏰ Vencido hace {abs(d_prox)} días"
+                        elif d_trans > limite:
+                            motivo = f"⏰ Atrasado: {d_trans} días sin revisión (Frecuencia: c/{limite} d)"
+                        elif d_prox <= 3:
+                            motivo = f"🔔 Próximo vencimiento en {d_prox} días"
+                        else:
+                            motivo = f"📉 Salud operativa baja ({salud}/10)"
+                            
+                        st.warning(f"**{row['EQUIPO']}** — {row['ICONO']} {row['CAT']}\n\n{motivo}")
+                else:
+                    st.success("✅ Todos los equipos operan en rangos seguros y al día con el cronograma.")
+
+            # ── 4. GRÁFICOS DE LABORES Y TENDENCIA ──
+            if col_labor and col_labor in df_m_full.columns:
+                st.markdown("---")
+                g_c1, g_c2 = st.columns(2)
+                with g_c1:
+                    st.write("**📊 Tipos de Mantenimiento Ejecutados**")
+                    df_labores = df_m_full[col_labor].dropna().value_counts().reset_index()
+                    df_labores.columns = ['Labor', 'Cantidad']
+                    fig_lab = px.bar(df_labores.head(8), x='Cantidad', y='Labor', orientation='h',
+                                     color='Cantidad', color_continuous_scale='Teal',
+                                     template="plotly_dark")
+                    fig_lab.update_layout(**LAYOUT_BASE, yaxis=dict(autorange="reversed"), height=300)
+                    st.plotly_chart(fig_lab, use_container_width=True)
+
+                with g_c2:
+                    st.write("**📈 Tendencia de Salud por Equipo**")
+                    fig_evo = px.line(df_m_full.sort_values(col_fecha),
+                                      x=col_fecha, y='SALUD', color='EQUIPO',
+                                      markers=True, template="plotly_dark")
+                    fig_evo.add_hrect(y0=0, y1=6, fillcolor="rgba(244,67,54,0.08)", line_width=0)
+                    fig_evo.add_hrect(y0=6, y1=8, fillcolor="rgba(255,235,59,0.08)", line_width=0)
+                    fig_evo.update_layout(**LAYOUT_BASE, height=300, yaxis=dict(range=[0, 10.5]),
+                                          xaxis_title="Fecha", yaxis_title="Salud (0–10)")
+                    st.plotly_chart(fig_evo, use_container_width=True)
+
+            # ── 5. HISTORIAL DE INTERVENCIONES ──
+            with st.expander("📝 Ver historial completo de intervenciones"):
+                cols_mostrar = [c for c in df_m_full.columns if c not in ['MARCA TEMPORAL', 'CAT', 'COLOR', 'ICONO', 'DIAS_TRANS', 'LIMITE', 'DIAS_PROX']]
+                st.dataframe(
+                    df_m_full[cols_mostrar].sort_values(col_fecha, ascending=False),
+                    column_config={
+                        "SALUD": st.column_config.ProgressColumn(
+                            "Salud Operativa",
+                            help="Estado del equipo en escala de 0 a 10",
+                            format="%d",
+                            min_value=0,
+                            max_value=10,
+                        ),
+                        "FECHA": st.column_config.DateColumn("Fecha Intervención", format="DD/MM/YYYY"),
+                        col_prox if col_prox else "PROX": st.column_config.DateColumn("Próximo Mantenimiento", format="DD/MM/YYYY")
+                    },
+                    use_container_width=True,
+                    hide_index=True
+                )
+        else:
+            st.warning("⚠️ No se cargaron datos de mantenimiento.")
 
             # 6. Aplicar evaluación
             if not df_ultimos.empty:
