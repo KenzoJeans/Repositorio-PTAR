@@ -1423,7 +1423,7 @@ try:
                     use_container_width=True,
                     hide_index=True
                 )
-        else:
+            else:
             st.warning("⚠️ No se cargaron datos de mantenimiento.")
 
             # 6. Aplicar evaluación
