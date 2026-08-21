@@ -1004,7 +1004,7 @@ try:
         FRECUENCIA_CRONOGRAMA = [
             (["DRAGA"],                    "Diario (rejillas) + Semanal (limpieza profunda canasta)"),
             (["LODO"],                     "Semanal (revisión mecánica) + Bianual (vactor)"),
-            (["HOMOGENIZ"],                "Semanal (vactor)"),
+            (["HOMOGENIZ"],                "Bi anual (vactor)"),
             (["SEDIMENTA"],                "Semanal (agua a presión) + Semestral (retiro de paneles)"),
             (["FLOCULA", "COAGULA"],       "Semanal (agua a presión)"),
             (["BOMBA"],                    "Diario (aire a presión) + Semanal (revisión mecánica)"),
