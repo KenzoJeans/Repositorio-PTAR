@@ -1142,45 +1142,45 @@ try:
             if 'SALUD' in df_m.columns:
                 df_m['SALUD'] = pd.to_numeric(df_m['SALUD'], errors='coerce')
 
-        with col_v1:
-    st.write("**🌡️ Salud Promedio por Equipo** (periodo seleccionado)")
-    if not df_m.empty and 'EQUIPO' in df_m.columns and 'SALUD' in df_m.columns:
-        df_resumen = (df_m.dropna(subset=['SALUD'])
-                          .groupby('EQUIPO')['SALUD']
-                          .agg(promedio='mean', minimo='min', registros='count')
-                          .reset_index()
-                          .sort_values('promedio'))
+                with col_v1:
+            st.write("**🌡️ Salud Promedio por Equipo** (periodo seleccionado)")
+            if not df_m.empty and 'EQUIPO' in df_m.columns and 'SALUD' in df_m.columns:
+                df_resumen = (df_m.dropna(subset=['SALUD'])
+                                  .groupby('EQUIPO')['SALUD']
+                                  .agg(promedio='mean', minimo='min', registros='count')
+                                  .reset_index()
+                                  .sort_values('promedio'))
 
-        def _zona(v):
-            if v < 6:
-                return "Crítica"
-            if v < 8:
-                return "Preventiva"
-            return "Buena"
+                def _zona(v):
+                    if v < 6:
+                        return "Crítica"
+                    if v < 8:
+                        return "Preventiva"
+                    return "Buena"
 
-        df_resumen['ZONA'] = df_resumen['promedio'].apply(_zona)
+                df_resumen['ZONA'] = df_resumen['promedio'].apply(_zona)
 
-        fig_bar = px.bar(
-            df_resumen, x='promedio', y='EQUIPO', orientation='h',
-            color='ZONA',
-            color_discrete_map={"Crítica": "#F44336",
-                                "Preventiva": "#FFEB3B",
-                                "Buena": "#4CAF50"},
-            text_auto='.1f',
-            hover_data={'minimo': ':.0f', 'registros': True, 'ZONA': False},
-            template="plotly_dark",
-        )
-        fig_bar.update_layout(
-            margin=dict(l=10, r=10, t=10, b=10),
-            height=max(300, 32 * len(df_resumen)),
-            paper_bgcolor='rgba(0,0,0,0)',
-            xaxis=dict(range=[0, 10], title="Salud promedio (0–10)"),
-            yaxis_title=None,
-            showlegend=False,
-        )
-        st.plotly_chart(fig_bar, use_container_width=True)
-    else:
-        st.info("Sin datos de mantenimiento en el periodo seleccionado.")
+                fig_bar = px.bar(
+                    df_resumen, x='promedio', y='EQUIPO', orientation='h',
+                    color='ZONA',
+                    color_discrete_map={"Crítica": "#F44336",
+                                        "Preventiva": "#FFEB3B",
+                                        "Buena": "#4CAF50"},
+                    text_auto='.1f',
+                    hover_data={'minimo': ':.0f', 'registros': True, 'ZONA': False},
+                    template="plotly_dark",
+                )
+                fig_bar.update_layout(
+                    margin=dict(l=10, r=10, t=10, b=10),
+                    height=max(300, 32 * len(df_resumen)),
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    xaxis=dict(range=[0, 10], title="Salud promedio (0–10)"),
+                    yaxis_title=None,
+                    showlegend=False,
+                )
+                st.plotly_chart(fig_bar, use_container_width=True)
+            else:
+                st.info("Sin datos de mantenimiento en el periodo seleccionado.")
 
         with col_v2:
             st.write("**📢 Alertas de Mantenimiento** (cronograma completo)")
