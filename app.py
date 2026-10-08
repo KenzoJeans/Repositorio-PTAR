@@ -1140,9 +1140,11 @@ try:
                 df_m[col_fecha_m2] = pd.to_datetime(
                     df_m[col_fecha_m2], dayfirst=True, errors='coerce').dt.date
             if 'SALUD' in df_m.columns:
+                # CAMBIO 1: sin .fillna(0) para no convertir vacíos en salud 0
                 df_m['SALUD'] = pd.to_numeric(df_m['SALUD'], errors='coerce')
 
-                with col_v1:
+        with col_v1:
+            # CAMBIO 2: mapa de calor reemplazado por barras de salud promedio
             st.write("**🌡️ Salud Promedio por Equipo** (periodo seleccionado)")
             if not df_m.empty and 'EQUIPO' in df_m.columns and 'SALUD' in df_m.columns:
                 df_resumen = (df_m.dropna(subset=['SALUD'])
